@@ -1,0 +1,4 @@
+.web-data-note{padding:12px 16px;margin:8px 0;border-radius:12px;background:#f0f5f2;color:#163f38;font-size:.9rem}.web-data-note p{margin:0 0 8px}.web-data-note button{margin-top:6px}.web-loading .flow-content{opacity:.65;pointer-events:none}.web-download-actions{display:grid;gap:12px}.web-download-actions button{white-space:normal}.web-progress{min-height:3em;overflow-wrap:anywhere}
+.tap-flow dialog[open]{display:flex;flex-direction:column;overflow:hidden}
+.tap-flow dialog #dialog-content{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:4px}
+.tap-flow dialog #dialog-close{position:static;flex:none;align-self:flex-start;box-shadow:none;margin-top:12px}
