@@ -2,3 +2,4 @@
 .tap-flow dialog[open]{display:flex;flex-direction:column;overflow:hidden}
 .tap-flow dialog #dialog-content{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:4px}
 .tap-flow dialog #dialog-close{position:static;flex:none;align-self:flex-start;box-shadow:none;margin-top:12px}
+.web-school-choice{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:.75rem;color:#365a50;overflow-wrap:anywhere}.web-school-choice button{flex:none}.web-school-choice span{min-width:0}

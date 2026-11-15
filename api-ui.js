@@ -2,6 +2,16 @@
 /* Protected website UI. The letter and identity fields never enter API payloads. */
 const web=CivicWeb,webReady=new Map(),webLoading=new Set(),webErrors=new Map();
 const renderCore=render;
+// School leadership can rank below the three suggested offices. Keep it
+// discoverable for the explicitly chosen board without promoting specialist
+// roles or inferring a school authority from the postal community.
+const contactGroupsCore=flowContactGroups;
+flowContactGroups=function(){
+  const groups=contactGroupsCore();
+  const school=state.levels.includes('school')&&state.schoolBoard?
+    [...groups.main,...groups.additional].filter(c=>c.level==='school'&&c.jurisdiction===state.schoolBoard):[];
+  return {...groups,school};
+};
 function webCurrentKey(){return web.locationKey(state);}
 function webNeedsData(){return !!state.province&&(Date.now()-(webReady.get(webCurrentKey())||0)>300000||state.city&&state.issue&&state.levels.length&&!web.lookupInfo(state));}
 function webEnsure(){
@@ -26,6 +36,14 @@ render=function(){
     const send=$('#send-link');if(send){send.setAttribute('aria-disabled','true');send.dataset.ready='false';}
   }
   const info=web.lookupInfo(state);
+  if(!busy&&step===2&&['recipients','recipients-done'].includes(flow.view)&&state.levels.includes('school')&&state.schoolBoard){
+    const school=flowContactGroups().school;
+    const choice=document.createElement('div');choice.className='web-school-choice';
+    choice.innerHTML=school.length?
+      `<button class="button secondary small" data-web="school-contacts" aria-pressed="${flow.group==='school'&&flow.view==='recipients'}">School contacts · ${school.length}</button><span>${esc(state.schoolBoard)}</span>`:
+      `<span>No matching school email loaded for ${esc(state.schoolBoard)} and this issue.${info?.nextOffset!=null?' Load more relevant offices below.':' Try the office directory or review your board and issue.'}</span>`;
+    const coverage=$('#recipient-coverage');if(coverage)coverage.after(choice);else $('#panel .flow-content')?.prepend(choice);
+  }
   if(!busy&&step===2&&info?.nextOffset!=null){
     const more=document.createElement('div');more.className='web-data-note';more.innerHTML=`<p>${info.results.length} of ${info.total} relevant office entries loaded.</p><button class="button secondary small" data-web="more-contacts">Load more relevant offices</button>`;($('#panel .flow-content')||$('#panel')).append(more);
   }else if(!busy&&step===2&&info?.refineRequired){const note=document.createElement('p');note.className='web-data-note';note.textContent='More entries match. Use the office directory to narrow your search.';($('#panel .flow-content')||$('#panel')).append(note);}
@@ -65,6 +83,10 @@ const originalMenu=flowMenu;
 flowMenu=function(){originalMenu();$('#dialog-content .choice-stack').insertAdjacentHTML('beforeend','<button class="button secondary" data-web="offline">Offline availability</button>');};
 document.addEventListener('click',async event=>{
   const action=event.target.closest('[data-web]')?.dataset.web;
+  if(action==='school-contacts'){
+    if(webNeedsData()||!flowContactGroups().school.length)return;
+    flow.group='school';flowMove('recipients');
+  }
   if(action==='retry-search')renderDirectoryResults();
   if(action==='more-contacts'){
     const button=event.target.closest('button');button.disabled=true;
