@@ -6,7 +6,7 @@ Development, source data, tests and release instructions belong in the private
 [civicpost repository](https://github.com/abdullahimperial/civicpost).
 Make changes there; do not hand-edit this generated website.
 
-Release: `e8e8aefa80d7d07a9031`. Source commit: `8ba51ef120e43607fcee8221c54fd64404a27b81`.
+Release: `5307c0a8e4b67e9b7148`. Source commit: `156ac4a6ea8a30cd37d72d4a6a6b640b6b411cfa`.
 See [release.json](release.json) for data dates and initial download measurements.
 These are dated public records, not a guarantee that an officeholder is current.
 
@@ -32,4 +32,6 @@ service worker. The source repository's docs/WEB_RELEASE.md explains the process
 
 Choose a monitored support email before promoting this preview widely. The
 domain and any advertising configuration are separate later decisions. This
-website currently has no ads or analytics SDK.
+website has no ads. Cloudflare Web Analytics measures visits and page performance;
+see privacy.html and release.json for the current configuration. It does not
+count confirmed email sends or identify unique people.
