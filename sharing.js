@@ -7,7 +7,7 @@ const text=(v,max,label)=>{if(typeof v!=='string'||v.length>max)throw Error('Inv
 function validate(raw){
  if(!raw||raw.format!=='civicpost-draft'||raw.version!==1)throw Error('This is not a supported CivicPost draft.');
  const loc=raw.location;if(!loc||!D.provinces.some(p=>p.code===loc.province))throw Error('The draft needs a Canadian province or territory.');
- const location={province:loc.province};for(const k of ['city','ward','provRiding','fedRiding','schoolBoard'])location[k]=text(loc[k]||'',k==='schoolBoard'?240:180,'location');
+ const location={province:loc.province};for(const k of ['city','municipality','ward','provRiding','fedRiding','schoolBoard'])location[k]=text(loc[k]||'',k==='schoolBoard'?240:180,'location');
  if(!location.city.trim())throw Error('The draft needs a city or community.');
  const subject=text(raw.subject,500,'subject').replace(/[\r\n]+/g,' '),body=text(raw.body,MAX_TEXT,'message');
  if(!subject.trim()||!body.trim())throw Error('Add a subject and message before sharing.');
@@ -22,7 +22,7 @@ function validate(raw){
  if(!recipients.some(c=>c.mode==='to'))throw Error('Choose at least one To recipient.');
  return {format:'civicpost-draft',version:1,location,issue,subject,body,recipients};
 }
-function fromState(s){return validate({format:'civicpost-draft',version:1,location:{province:s.province,city:s.city,ward:s.ward,provRiding:s.provRiding,fedRiding:s.fedRiding,schoolBoard:s.schoolBoard},issue:s.issue,subject:s.subject,body:s.body,recipients:E.selectedContacts(s).map(c=>({email:c.email,role:c.role,level:c.level,mode:s.recipientModes[c.id]==='cc'?'cc':'to',source:c.source,jurisdiction:c.jurisdiction||''}))});}
+function fromState(s){return validate({format:'civicpost-draft',version:1,location:{province:s.province,city:s.city,municipality:s.municipality,ward:s.ward,provRiding:s.provRiding,fedRiding:s.fedRiding,schoolBoard:s.schoolBoard},issue:s.issue,subject:s.subject,body:s.body,recipients:E.selectedContacts(s).map(c=>({email:c.email,role:c.role,level:c.level,mode:s.recipientModes[c.id]==='cc'?'cc':'to',source:c.source,jurisdiction:c.jurisdiction||''}))});}
 function base64url(bytes){let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function unbase64(s){if(!/^[A-Za-z0-9_-]+$/.test(s)||s.length>140000)throw Error('Invalid or oversized share code.');try{return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));}catch{throw Error('Invalid share code.');}}
 async function transform(bytes,type){

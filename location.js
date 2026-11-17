@@ -15,7 +15,7 @@ function provinceFromPostal(value){
 }
 function savedLocation(raw){
  if(!raw||!D.provinces.some(p=>p.code===raw.province)||!clean(raw.city)||clean(raw.city).length>100)return null;
- const out={};for(const k of ['province','city','ward','provRiding','fedRiding','schoolBoard'])out[k]=clean(raw[k]).slice(0,k==='schoolBoard'?240:180);return out;
+ const out={};for(const k of ['province','city','municipality','ward','provRiding','fedRiding','schoolBoard'])out[k]=clean(raw[k]).slice(0,k==='schoolBoard'?240:180);return out;
 }
 const api={parseSuggestion,provinceFromPostal,savedLocation};if(typeof module!=='undefined')module.exports=api;root.CivicLocation=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

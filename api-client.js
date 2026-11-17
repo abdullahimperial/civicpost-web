@@ -1,6 +1,6 @@
 (function(root){'use strict';
 const web=root.CivicWeb,E=root.CivicEngine,R=root.CivicDirectory;
-const fields=['province','city','ward','provRiding','fedRiding','schoolBoard','issue','serviceDetail'];
+const fields=['province','city','municipality','ward','provRiding','fedRiding','schoolBoard','issue','serviceDetail'];
 const results=new Map(),pending=new Map();
 let apiRelease='';
 function location(s){
@@ -46,6 +46,20 @@ web.ensureLocation=async function(s){
   return pending.get(k);
 };
 web.contactsForState=s=>(results.get(key(s))?.results||[]).filter(c=>E.currentRecord(c));
+web.reviewLiveContacts=(rows,s)=>{
+  // A postal provider or saved draft can still name an outgoing officeholder.
+  // Match against current, issue-scoped API results entirely in this browser.
+  // Unmatched contacts keep their district/source in the location step, but
+  // cannot become recipients; the user can verify and add a custom office.
+  const current=web.contactsForState(s);
+  return rows.flatMap(r=>{
+    if(!r.email)return [];
+    const c=current.find(c=>c.email&&c.email.toLowerCase()===r.email.toLowerCase()&&c.level===r.level&&
+      (c.emailType==='office'||r.name&&E.norm(c.name)===E.norm(r.name))&&
+      (!c.district||[c.district,...(c.districtAliases||[])].some(d=>E.norm(d)===E.norm(r.district))));
+    return c?[{...c,id:r.id,kind:'live',lookupSource:r.source}]:[];
+  });
+};
 web.lookupInfo=s=>results.get(key(s));
 web.moreContacts=async s=>{
   const k=key(s),previous=results.get(k);if(previous?.nextOffset==null)return;

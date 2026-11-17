@@ -29,6 +29,7 @@ function serviceMatches(c,s){
 function directoryEligible(c,s){return currentRecord(c)&&(!c.province||c.province===s.province)&&(s.levels||[]).includes(c.level)&&(!c.issues||!c.issues.length||c.issues.includes(s.issue))&&serviceMatches(c,s);}
 const dateFormatters=new Map(),localDates=new Map();
 function currentRecord(c,today=new Date()){
+ if(['needs-verification','needs_verification'].includes(c.refreshReview?.status)||c.refreshStatus==='needs_verification')return false;
  if(!c.validUntil&&!c.validFrom)return true;
  if(today instanceof Date){
   if(!c.validTimezone)today=today.toISOString().slice(0,10);
@@ -43,14 +44,43 @@ function currentRecord(c,today=new Date()){
  }
  return (!c.validUntil||today<=c.validUntil)&&(!c.validFrom||today>=c.validFrom);
 }
-function cityKey(value,province){const key=norm(value);const city=D.cities.find(c=>c.province===province&&[c.name,...(c.aliases||[])].some(n=>norm(n)===key));return norm(city?.name||value);}
+let municipalIndexCache;
+function municipalIndex(){
+ const mappings=D.municipalPlaces?.mappings,ambiguities=D.municipalPlaces?.ambiguities;
+ if(municipalIndexCache?.mappings===mappings&&municipalIndexCache?.ambiguities===ambiguities&&municipalIndexCache?.cities===D.cities&&municipalIndexCache?.cityCount===D.cities.length)return municipalIndexCache;
+ const key=(province,name)=>province+'|'+norm(name),map=new Map(),ambiguous=new Map(),cities=new Map();
+ for(const row of mappings||[])map.set(key(row.province,row.community),row);
+ for(const row of ambiguities||[])if(row.status!=='merged')ambiguous.set(key(row.province,row.locality),row);
+ for(const city of D.cities)for(const alias of [city.name,...(city.aliases||[])])if(!cities.has(key(city.province,alias)))cities.set(key(city.province,alias),norm(city.name));
+ municipalIndexCache={mappings,ambiguities,cities:D.cities,cityCount:D.cities.length,map,ambiguous,cityKeys:cities,key};return municipalIndexCache;
+}
+function cityKey(value,province){
+ const index=municipalIndex(),alias=index.map.get(index.key(province,value)),target=alias?.kind==='name-alias'?alias.municipality:value;
+ return index.cityKeys.get(index.key(province,target))||norm(target);
+}
+function municipalityFor(s){
+ const index=municipalIndex(),key=index.key(s.province,s.city),ambiguous=index.ambiguous.get(key),mapping=index.map.get(key);
+ const choices=ambiguous?(ambiguous.options||[]):mapping?.requiresConfirmation?[{name:mapping.municipality,source:mapping.source}]:[];
+ if(choices.length){
+  const chosen=choices.find(c=>cityKey(c.name,s.province)===cityKey(s.municipality,s.province));
+  return {status:chosen?'confirmed':ambiguous?'ambiguous':'confirmation-needed',name:chosen?.name||'',choices,source:ambiguous?.source||mapping?.source||'',community:s.city};
+ }
+ // An arbitrary/stale municipality value cannot override a different locality.
+ return {status:'resolved',name:mapping?.municipality||s.city,choices:[],source:mapping?.source||'',community:s.city};
+}
 function servesCity(c,s){
  if(c.province&&c.province!==s.province)return false;
- const key=cityKey(s.city,s.province);if(!key)return false;
+ const municipality=municipalityFor(s);if(!['resolved','confirmed'].includes(municipality.status))return false;
+ const key=cityKey(municipality.name,s.province);if(!key)return false;
  // Regional services list the communities they actually serve. An office's
  // mailing city is not evidence that it serves the entire province.
- const places=c.servedMunicipalities?.length?c.servedMunicipalities:[c.city,...(c.cityAliases||[])];
+ const places=c.servedMunicipalities?.length?c.servedMunicipalities:[c.city,c.jurisdiction,...(c.cityAliases||[])];
  return places.some(n=>n&&cityKey(n,s.province)===key);
+}
+function municipalScopeMatches(c,s){
+ if(!servesCity(c,s))return false;
+ const ward=!!s.ward&&[c.district,...(c.districtAliases||[])].some(d=>d&&norm(d)===norm(s.ward));
+ return c.borough?ward:!c.district||c.atLarge||norm(c.district)===norm(c.city)||ward;
 }
 function districtMatches(c,d){
  if(c.level!==d.level||c.province!==d.province||d.city&&cityKey(c.city,c.province)!==cityKey(d.city,d.province))return false;
@@ -68,7 +98,7 @@ function directorySearch(filters={}){
 }
 function jurisdictions(province,level){return [...new Set(R.contacts.filter(c=>(!province||!c.province||c.province===province)&&(!level||c.level===level)).map(c=>c.jurisdiction))].sort((a,b)=>a.localeCompare(b));}
 function ridings(province,level){return [...new Set(R.contacts.filter(c=>c.province===province&&c.level===level&&c.scope==='riding').map(c=>c.district))].sort((a,b)=>a.localeCompare(b));}
-function municipalityNames(province){return [...new Set([...D.cities.filter(c=>c.province===province).map(c=>c.name),...R.contacts.filter(c=>c.province===province&&c.level==='municipal'&&c.city).map(c=>c.city)])].sort((a,b)=>a.localeCompare(b));}
+function municipalityNames(province){return [...new Set([...D.cities.filter(c=>c.province===province).map(c=>c.name),...(D.municipalPlaces?.mappings||[]).filter(m=>m.province===province).map(m=>m.community),...R.contacts.filter(c=>c.province===province&&c.level==='municipal'&&c.city).map(c=>c.city)])].sort((a,b)=>a.localeCompare(b));}
 function directoryMatches(s){return R.contacts.filter(c=>{
  if(!directoryEligible(c,s))return false;
  if(c.manualOnly||c.officeStaff||!currentRecord(c))return false;
@@ -78,10 +108,26 @@ function directoryMatches(s){return R.contacts.filter(c=>{
   if(c.trusteeMunicipalWards){const ward=/^(?:ward\s*)?(\d+)$/i.exec(String(s.ward||'').trim());return c.province==='AB'&&norm(c.city)==='calgary'&&norm(s.city)==='calgary'&&!!c.trusteeMappingSource&&!!ward&&c.trusteeMunicipalWards.includes(ward[1]);}
   return true;
  }
- if(c.level==='municipal'){if(!servesCity(c,s))return false;const ward=!!s.ward&&[c.district,...(c.districtAliases||[])].some(d=>d&&norm(d)===norm(s.ward));if(c.borough)return ward;return !c.district||c.atLarge||norm(c.district)===norm(c.city)||ward;}
+ if(c.level==='municipal')return municipalScopeMatches(c,s);
  if(c.scope==='ministry')return c.issues?.includes(s.issue)&&!c.optional;
  return false;
 });}
+let liveIdentityCache;
+function blockedLiveIdentity(r,s={}){
+ // A saved/API row can predate a reviewed departure and have none of the new
+ // expiry fields. Compare the exact named mailbox and any supplied holder, not a mailbox
+ // pattern or a person's name alone. Generic role inboxes remain independent.
+ if(!r.email)return;
+ if(liveIdentityCache?.contacts!==R.contacts||liveIdentityCache?.count!==R.contacts.length){
+  const byEmail=new Map();
+  for(const c of R.contacts)if(c.emailType==='named'&&c.email){const key=c.email.toLowerCase();if(!byEmail.has(key))byEmail.set(key,[]);byEmail.get(key).push(c);}
+  liveIdentityCache={contacts:R.contacts,count:R.contacts.length,byEmail};
+ }
+ const province=String(s.province||r.province||''),code=D.provinces.find(p=>norm(p.code)===norm(province)||norm(p.name)===norm(province))?.code||province;
+ const candidates=(liveIdentityCache.byEmail.get(clean(r.email).toLowerCase())||[]).filter(c=>c.level===r.level&&(!code||!c.province||c.province===code)&&(!r.name||norm(r.name)===norm(c.name))&&(!r.district||!c.district||[c.district,...(c.districtAliases||[])].some(d=>norm(d)===norm(r.district))));
+ if(candidates.some(c=>currentRecord(c)))return;
+ return candidates.find(c=>!currentRecord(c));
+}
 function parseLookup(raw,{origin='Open North',trustedOfficeTypes=false,checked=new Date().toISOString().slice(0,10),recordSources=[]}={}){
  if(!raw||typeof raw!=='object')throw Error('No matching districts were returned.');
  const reps=[...(Array.isArray(raw.representatives_centroid)?raw.representatives_centroid:[]),...(Array.isArray(raw.representatives_concordance)?raw.representatives_concordance:[])];
@@ -89,23 +135,26 @@ function parseLookup(raw,{origin='Open North',trustedOfficeTypes=false,checked=n
  for(const [index,r] of reps.slice(0,200).entries()){if(!r||typeof r!=='object')continue;const level=levelFor(r);if(!level)continue;const provenance=recordSources[index]||{},recordOrigin=provenance.origin||origin,recordChecked=provenance.checked||checked,recordTrusted=provenance.trustedOfficeTypes===true||trustedOfficeTypes;
  const district=clean(r.district_name).slice(0,160),office=clean(r.elected_office).slice(0,50),set=clean(r.representative_set_name).slice(0,160);const source=safeURL(r.url)||safeURL(r.source_url);if(!source)continue;
  const key=[level,district,set,office,clean(r.name),clean(r.email).toLowerCase(),source].join('|');if(seen.has(key))continue;seen.add(key);
- const generic=recordTrusted&&r.email_type==='office'?publishedEmail(r):roleEmail(r);out.push({id:'live-'+out.length,level,district,role:(recordTrusted&&r.contact_role?clean(r.contact_role).slice(0,100):office)+' — '+district,name:clean(r.name).slice(0,160),source,email:generic||publishedEmail(r),emailType:generic?'office':'named',kind:'live',set,note:'From '+recordOrigin+'. Confirm the district and current office on its official page.',checked:recordChecked});
+ const generic=recordTrusted&&r.email_type==='office'?publishedEmail(r):roleEmail(r),contact={id:'live-'+out.length,level,district,role:(recordTrusted&&r.contact_role?clean(r.contact_role).slice(0,100):office)+' — '+district,name:clean(r.name).slice(0,160),source,email:generic||publishedEmail(r),emailType:generic?'office':'named',kind:'live',set,note:'From '+recordOrigin+'. Confirm the district and current office on its official page.',checked:recordChecked};
+ const blocked=blockedLiveIdentity(contact,raw);
+ if(blocked){contact.email='';contact.reviewedContactId=blocked.id;contact.refreshReview=blocked.refreshReview;for(const field of ['validFrom','validUntil','validTimezone','refreshStatus'])if(blocked[field])contact[field]=blocked[field];contact.note+=' The reviewed directory withholds this named contact. Use the current official office page.';}
+ out.push(contact);
  }
  return {province:clean(raw.province).slice(0,60),city:clean(raw.city).slice(0,120),reps:out};
 }
-function cityFor(s){const city=D.cities.find(c=>c.province===s.province&&cityKey(c.name,s.province)===cityKey(s.city,s.province));if(!city)return city;const m=root.CivicOfflineData||(typeof module!=='undefined'?require('./offline-metadata.js'):null);const wards=(m?.districts||[]).filter(d=>d.level==='municipal'&&d.province===s.province&&cityKey(d.city,s.province)===cityKey(s.city,s.province)&&currentRecord(d)).map(d=>d.name);return {...city,wards:[...new Set([...city.wards,...wards])]};}
+function cityFor(s){const municipality=municipalityFor(s);if(!municipality.name)return;const key=cityKey(municipality.name,s.province);const city=D.cities.find(c=>c.province===s.province&&cityKey(c.name,s.province)===key);if(!city)return city;const m=root.CivicOfflineData||(typeof module!=='undefined'?require('./offline-metadata.js'):null);const wards=(m?.districts||[]).filter(d=>d.level==='municipal'&&d.province===s.province&&cityKey(d.city,s.province)===key&&currentRecord(d)).map(d=>d.name);return {...city,wards:[...new Set([...city.wards,...wards])]};}
 function contactsFor(s){
  const p=D.provinces.find(p=>p.code===s.province);if(!p)return [];
  const issue=D.issues.find(i=>i.id===s.issue);if(!issue)return [];
  const levels=s.levels||issue.levels;const city=cityFor(s);let out=D.contacts.filter(c=>levels.includes(c.level)&&(!c.province||c.province===s.province)&&(!c.city||norm(c.city)===norm(s.city))&&(!c.ward||norm(c.ward)===norm(s.ward))&&(!c.issues||c.issues.includes(s.issue)));
- const selectedLive=(s.liveReps||[]).filter(r=>(s.liveChosen||[]).includes(r.id)&&levels.includes(r.level));
+ const selectedLive=(root.CivicWeb?.reviewLiveContacts(s.liveReps||[],s)||[]).filter(r=>(s.liveChosen||[]).includes(r.id)&&levels.includes(r.level)&&currentRecord(r)&&!blockedLiveIdentity(r,s));
  out.push(...selectedLive);out.push(...(root.CivicWeb?.contactsForState(s)||[]));
  const matched=directoryMatches(s);
  out.push(...matched);
  out.push(...(R.routes||[]).filter(c=>directoryEligible(c,s)&&usableServiceRoute(c,s)));
  out.push(...(s.directoryAdded||[]).map(id=>directoryById.get(id)).filter(c=>c&&directoryEligible(c,s)));
  const add=(id,role,level,source,note)=>out.push({id,role,level,source,email:'',note,kind:'directory'});
- if(levels.includes('municipal')&&!selectedLive.some(r=>r.level==='municipal'))add('municipal-directory',s.ward?`Councillor — ${s.ward}`:'Your municipal council','municipal',city?.council||p.government,city?'Open the official directory to confirm your ward contact.':'This municipality is not in the bundled directory. Add its official office contact below; the provincial portal is a starting point.');
+ if(levels.includes('municipal')&&!selectedLive.some(r=>r.level==='municipal')){const authority=municipalityFor(s),pending=['ambiguous','confirmation-needed'].includes(authority.status);add('municipal-directory',pending?'Confirm your municipal government':s.ward?`Councillor — ${s.ward}`:'Your municipal council','municipal',city?.council||authority.source||p.government,pending?'Review your municipal government in Your location before choosing municipal recipients.':city?'Open the official directory to confirm your ward contact.':'This municipality is not in the bundled directory. Add its official office contact below; the provincial portal is a starting point.');}
  if(levels.includes('provincial')&&!selectedLive.some(r=>r.level==='provincial')&&!matched.some(c=>c.scope==='riding'&&c.level==='provincial'))add('provincial-member',`Your ${p.title}${s.provRiding?' — '+s.provRiding:''}`,'provincial',p.members,'Choose your riding in Your location, or search the contact directory below. Confirm the current member on the legislature’s website.');
  if(levels.includes('provincial')&&s.issue==='education'&&!out.some(c=>c.issues?.includes('education')))add('education-directory','Education ministry / department','provincial',p.education,'An official contact page is available. A generic inbox has not been verified for this release.');
  if(levels.includes('provincial')&&s.issue!=='education')add('provincial-ministry','Relevant provincial / territorial ministry','provincial',p.government,'Choose the ministry responsible for the specific program or policy.');
@@ -118,7 +167,7 @@ function contactsFor(s){
  out.push(...(s.custom||[]).filter(c=>levels.includes(c.level)&&c.province===s.province&&(!['municipal','school','community'].includes(c.level)||norm(c.city)===norm(s.city))));
  const seen=new Set();return out.sort((a,b)=>Number((s.selected||[]).includes(b.id))-Number((s.selected||[]).includes(a.id))||Number(b.emailType==='office')-Number(a.emailType==='office')).filter(c=>{const key=c.email?c.email.toLowerCase():c.id;if(seen.has(key))return false;seen.add(key);return true;});
 }
-function usableServiceRoute(c,s){return !!safeURL(c.source)&&(!c.email)&&((c.level==='municipal'&&servesCity(c,s))||(c.scope==='ministry'&&c.issues?.includes(s.issue))||(c.level==='school'&&s.schoolBoard===c.jurisdiction));}
+function usableServiceRoute(c,s){return !!safeURL(c.source)&&(!c.email)&&((c.level==='municipal'&&municipalScopeMatches(c,s))||(c.scope==='ministry'&&c.issues?.includes(s.issue))||(c.level==='school'&&s.schoolBoard===c.jurisdiction));}
 function contactRelevance(c,s){
  if(c.kind==='service-route')return {score:85,reason:c.servicePurpose||'Official service-request channel for this issue and community.'};
  if(!c.email)return {score:0,reason:'Use this official finder when an email or district is missing.'};
@@ -161,5 +210,5 @@ function draft(s){const issue=D.issues.find(i=>i.id===s.issue);const p=D.provinc
 }
 function mailto(s){const rec=selectedContacts(s);const to=rec.filter(c=>(s.recipientModes||{})[c.id]!=='cc').map(c=>c.email);const cc=rec.filter(c=>(s.recipientModes||{})[c.id]==='cc').map(c=>c.email);if(!to.length)throw Error('Choose at least one To recipient.');const subject=clean(s.subject).replace(/[\r\n]+/g,' ');const body=String(s.body||'');if(!subject||!body.trim())throw Error('Add a subject and a message first.');const params=new URLSearchParams();if(cc.length)params.set('cc',cc.join(','));params.set('subject',subject);params.set('body',body);return 'mailto:'+to.map(encodeURIComponent).join(',')+'?'+params.toString().replace(/\+/g,'%20');}
 function refreshDirectory(){directoryById.clear();for(const c of R.contacts)directoryById.set(c.id,c);searchable=R.contacts.map(c=>({c,text:norm([c.role,c.name,c.email,c.jurisdiction,c.city,c.district].join(' '))}));}
-const E={refreshDirectory,currentRecord,cityKey,servesCity,serviceMatches,districtMatches,norm,clean,emailValid,safeURL,postal,postalValid,parseLookup,roleEmail,publishedEmail,levelFor,contactsFor,contactRelevance,recipientGroups,coverageFor,selectedContacts,draft,mailto,cityFor,directorySearch,directoryMatches,directoryEligible,jurisdictions,ridings,municipalityNames,directoryById};if(typeof module!=='undefined')module.exports=E;root.CivicEngine=E;
+const E={refreshDirectory,currentRecord,cityKey,municipalityFor,municipalScopeMatches,usableServiceRoute,servesCity,serviceMatches,districtMatches,norm,clean,emailValid,safeURL,postal,postalValid,parseLookup,roleEmail,publishedEmail,levelFor,contactsFor,contactRelevance,recipientGroups,coverageFor,selectedContacts,draft,mailto,cityFor,directorySearch,directoryMatches,directoryEligible,jurisdictions,ridings,municipalityNames,directoryById};if(typeof module!=='undefined')module.exports=E;root.CivicEngine=E;
 })(typeof globalThis!=='undefined'?globalThis:this);

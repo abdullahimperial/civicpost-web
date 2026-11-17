@@ -19,6 +19,7 @@ function flowMove(view,{stage=step,remember=true}={}){
 function flowBack(){const p=flow.history.pop();if(p){step=p.stage;Object.assign(flow,p);render();$('#panel').focus({preventScroll:true});}else if(step)go(step-1);else flowMove('start',{remember:false});}
 go=function(n){
  if(n>0&&!locationValid()){toast(state.locationConfirmed===false?'Confirm the suggested city first.':'Choose your province or territory and community first.');return;}
+ if(n>0&&step===0&&flowMunicipalityPending()&&flow.municipalitySkipped!==flowMunicipalityKey()){flowMove('municipality');return;}
  if(n>1&&(!state.issue||!state.levels.length)){toast('Choose an issue and at least one level of government.');return;}
  if(step===0&&n>0)persistLocation();
  if($('#dialog').open)$('#dialog').close();
@@ -32,13 +33,21 @@ function flowPages(items,make,size=4){
  return `<div class="choice-grid">${items.slice(flow.page*size,(flow.page+1)*size).map(make).join('')}</div>${pages>1?`<div class="flow-pagination">${flowBtn('‹ Previous','page-prev','secondary small',flow.page?'':'disabled')}<span aria-live="polite">${flow.page+1} / ${pages}</span>${flowBtn('More ›','page-next','secondary small',flow.page+1<pages?'':'disabled')}</div>`:''}`;
 }
 function flowLocationReview(){
- return flowShell('Your community.', 'Confirm the place your message is about.',`<div class="location-card">${icon('pin')}<div><strong>${esc(state.city)}</strong><span>${esc(D.provinces.find(p=>p.code===state.province)?.name||state.province)}</span>${state.postal?`<small>${esc(state.postal)}</small>`:''}</div>${flowBtn('Change','start','text-button')}</div><div class="choice-grid compact">${tile('Districts & school board','Review or add optional details','location-details','building')}${tile(rememberLocation?'Location remembered':'Remember this location','Only on this device','remember','lock',`aria-pressed="${rememberLocation}"`)}</div><p class="flow-hint">${state.ward||state.provRiding||state.fedRiding||state.schoolBoard?'District or board choices saved. Review them above.':'Ward, riding and school board are optional. Add them for more precise matches.'}</p>`,{next:'Choose issue →',action:'next-stage'});
+ const municipality=E.municipalityFor(state),municipalLabel=municipality.name&&E.norm(municipality.name)!==E.norm(state.city)?`<small>Municipal services: ${esc(municipality.name)}</small>`:flowMunicipalityPending()?'<small>Municipal authority needs confirmation</small>':'';
+ return flowShell('Your community.', 'Confirm the place your message is about.',`<div class="location-card">${icon('pin')}<div><strong>${esc(state.city)}</strong><span>${esc(D.provinces.find(p=>p.code===state.province)?.name||state.province)}</span>${municipalLabel}${state.postal?`<small>${esc(state.postal)}</small>`:''}</div>${flowBtn('Change','start','text-button')}</div>${municipality.choices.length?flowBtn('Review municipal authority','municipality','text-button'):''}<div class="choice-grid compact">${tile('Districts & school board','Review or add optional details','location-details','building')}${tile(rememberLocation?'Location remembered':'Remember this location','Only on this device','remember','lock',`aria-pressed="${rememberLocation}"`)}</div><p class="flow-hint">${state.ward||state.provRiding||state.fedRiding||state.schoolBoard?'District or board choices saved. Review them above.':'Ward, riding and school board are optional. Add them for more precise matches.'}</p>`,{next:'Choose issue →',action:'next-stage'});
+}
+function flowMunicipalityKey(){return state.province+'|'+E.norm(state.city);}
+function flowMunicipalityPending(){return ['ambiguous','confirmation-needed'].includes(E.municipalityFor(state).status);}
+function flowMunicipality(){
+ const m=E.municipalityFor(state);
+ return flowShell('Which municipal authority?',m.status==='ambiguous'?'This community name can refer to different municipal governments. Choose the one serving the address.':`Confirm the municipality serving ${esc(state.city)}.`,flowPages(m.choices,o=>tile(esc(o.name),state.municipality===o.name?'Your confirmed choice':'Confirm for this address','pick-municipality','building',`data-value="${esc(o.name)}"`),2)+`<p class="flow-hint">A community name does not establish a ward or electoral division. <a href="${esc(E.safeURL(m.source))}" target="_blank" rel="noopener noreferrer">Check the official source ↗</a></p>`,{skip:'Leave municipal authority unresolved',skipAction:'municipality-skip'});
 }
 function flowDistricts(){return ['municipal','provincial','federal'].filter(l=>lookup&&lookupGroups(l).length);}
 function flowLookupDetails(){modal(`<h2>Postal lookup details</h2><p class="small" role="status">${esc(lookupError||lookupStatus)}</p>${lookup?lookupChoices():''}${lookupRecovery()}${button('Offline coverage','offline-coverage','secondary small')}`);}
 function flowManualField(key,label,help,list){return flowShell(label,'Optional — leave it unresolved if you are unsure.',`${field(key,label,'Type or choose the exact name')}<datalist id="flow-field-options">${list.map(x=>`<option value="${esc(x)}">`).join('')}</datalist><p class="flow-hint">${help}</p>`,{next:'Keep this choice →',action:'field-done',skip:state[key]?'Clear choice':'Skip for now',skipAction:'field-skip'});}
 locationPanel=function(){
  const v=flow.view,p=D.provinces.find(p=>p.code===state.province),city=E.cityFor(state);
+ if(v==='municipality')return flowMunicipality();
  if(v==='start')return flowShell('Where is your community?','Start with the option that suits you.',`<div class="choice-stack">${tile('Use a postal code','Find possible districts from the downloaded database','postal','pin')}${tile('Choose manually','Select a province and enter any community','province','city')}${tile('Suggest my city','Approximate internet location · no GPS','suggest','globe')}${locationValid()?tile('Use '+esc(state.city),'Continue with your current location','location-review','check'):''}</div>`,{back:false});
  if(v==='province')return flowShell('Province or territory?','Choose where your community is.',flowPages(D.provinces,p=>tile(esc(p.name),'','pick-province','pin',`data-value="${p.code}"`)));
  if(v==='city')return flowShell('Which community?','Any Canadian city, town or community can be entered.',`${field('city','City, town or community','e.g. Edmonton')}<datalist id="cities">${E.municipalityNames(state.province).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><p class="flow-hint">${esc(p?.name||'Choose a province first.')} ${flowBtn('Change province','province','text-button')}</p>`,{next:'Use this community →',action:'city-done'});
@@ -75,6 +84,8 @@ function flowContactCard(c){
 }
 contactsPanel=function(){
  if(flow.view==='board'||flow.view==='board-manual')return flowBoard();
+ if(flow.view==='municipality')return flowMunicipality();
+ if(state.levels.includes('municipal')&&flowMunicipalityPending()&&flow.municipalitySkipped!==flowMunicipalityKey())return flowMunicipality();
  const count=E.selectedContacts(state).length,coverage=E.coverageFor(state),groups=flowContactGroups();
  if(flow.view==='recipients-done')return flowShell(count?'Your recipients are ready.':'You can still write a message.',count?`${count} email recipient${count===1?'':'s'} selected. Review before opening your email app.`:'No email recipient is selected. Copy your draft for an official service form, or add a contact.',`<div class="choice-stack">${count?tile('Review selected recipients','Check addresses and To / Cc','selected','mail'):''}${tile('Browse more offices','Suggested offices and service channels','recipients','building')}${tile('Directory & more options','Opposition, school board or a verified contact','recipient-options','people')}</div>`,{next:'Write message →',action:'next-stage'});
  const available=['main','serviceRoutes','additional','finders'];if(!groups[flow.group]?.length&&flow.group!=='selected')flow.group=available.find(k=>groups[k].length)||'main';
@@ -91,7 +102,7 @@ messagePanel=function(){
  if(v==='style')return flowShell('Make the draft yours.','Choose a tone and letter framework.',`<p class="choice-label">Tone</p><div class="choice-row">${[['respectful','Constructive'],['firm','Firm & respectful']].map(([id,n])=>flowBtn(n,'preference','choice-pill',`data-key="tone" data-value="${id}" aria-pressed="${state.tone===id}"`)).join('')}</div><p class="choice-label">Letter framework</p><div class="choice-row">${[['en','English'],['fr','Français']].map(([id,n])=>flowBtn(n,'preference','choice-pill',`data-key="language" data-value="${id}" aria-pressed="${state.language===id}"`)).join('')}</div><p class="flow-hint">Your own words stay exactly as written; they are not translated.</p>${flowBtn(state.includePostal?'Postal code included ✓':'Include my postal code','include-postal','choice-pill',`aria-pressed="${state.includePostal}"`)}<p class="error" id="draft-error" role="status"></p>`,{next:'Build my draft →',action:'generate'});
  if(v==='review')return flowReview();
  if(v==='send-options')return flowShell('Open your draft with…','Uses your existing account. No email password is stored here.',`<div class="choice-stack">${[['default','My email app'],['gmail','Gmail in browser'],['outlook','Outlook in browser']].map(([id,n])=>tile(n,state.emailApp===id?'Current choice':'','email-app','mail',`data-value="${id}"`)).join('')}</div><p class="flow-hint">Opening Gmail or Outlook passes your recipients and draft to that service. You decide when to send.</p>`);
- const changed=state.body&&state.draftContext&&state.draftContext!==[state.province,state.city,state.ward,state.issue].join('|');
+ const changed=state.body&&state.draftContext&&state.draftContext!==[state.province,state.city,state.municipality||'',state.ward,state.issue].join('|');
  return flowShell('Your message.',changed?'Location or issue changed. Update this letter before sending.':'Edit freely. You can attach files later in your email app.',`<div class="field subject-field"><label for="subject">Subject</label><input id="subject" data-bind="subject" maxlength="200" value="${esc(state.subject)}" placeholder="A clear subject"></div>${area('body','Message','Write your message here.',5)}<div class="inline-options">${flowBtn('Writing prompts','guide','text-button')}${flowBtn('Save, copy & QR','draft-tools','text-button')}</div>`,{next:'Review & open →',action:'review',cls:'message-editor'});
 };
 function flowReview(){
@@ -115,7 +126,7 @@ render=function(){
  if(flow.view==='postal'||flow.view==='suggest')$('#panel [data-flow$="-run"]')?.toggleAttribute('disabled',flow.view==='postal'?lookupPending:locationPending);
  $('#flow-content')?.scrollTo(0,0);
 };
-function flowChooseProvince(code){if(state.province!==code){cancelLocationSuggestion();clearLookup();invalidate();Object.assign(state,{province:code,city:'',ward:'',provRiding:'',fedRiding:'',schoolBoard:'',locationConfirmed:true});}flowMove('city');}
+function flowChooseProvince(code){if(state.province!==code){cancelLocationSuggestion();clearLookup();invalidate();Object.assign(state,{province:code,city:'',municipality:'',ward:'',provRiding:'',fedRiding:'',schoolBoard:'',locationConfirmed:true});}flowMove('city');}
 function flowChooseDistrict(id){const level=flowDistricts()[flow.district];if(!level)return;state.liveChosen=state.liveChosen.filter(id=>!state.liveReps.some(r=>r.id===id&&r.level===level));const r=state.liveReps.find(r=>r.id===id);const key={municipal:'ward',provincial:'provRiding',federal:'fedRiding'}[level];state[key]=r?.district||'';if(r){const group=lookupGroups(level).find(g=>g.reps.some(x=>x.id===id));state.liveChosen.push(...(group?.reps||[r]).map(x=>x.id));}invalidate();flow.history.push({view:'district',stage:step,page:flow.page,group:flow.group,district:flow.district});flow.district++;flow.page=0;if(flow.district>=flowDistricts().length)flow.view='location-review';render();$('#panel').focus({preventScroll:true});}
 function flowBoardDone(){flowMove(step===2?'recipients':flow.returnView==='location-details'?'location-details':'location-review');}
 function flowRecipientOptions(){modal(`<h2>Recipient options</h2><div class="choice-stack">${tile(state.opposition?'Opposition included ✓':'Include opposition','Relevant oversight offices only','opposition','people')}${state.levels.includes('school')?tile('Choose school authority',esc(state.schoolBoard||'Not selected'),'board','book'):''}${tile('Search the directory','Find another published office','directory-choose','building')}${tile('Add a verified contact','Use its published email and official source','custom-contact','mail')}${tile('Review selected recipients',E.selectedContacts(state).length+' selected','selected','check')}</div><p class="small">Access/privacy and specialist inboxes are only for their listed service. Coverage is broad but incomplete.</p>${state.opposition&&['NT','NU'].includes(state.province)?'<p>The Northwest Territories and Nunavut use consensus government and do not have a party-based Official Opposition.</p>':''}`);}
@@ -132,9 +143,16 @@ document.addEventListener('click',e=>{
  if(a==='back'){flowBack();return;}
  if(a==='page-next'||a==='page-prev'){flow.page+=a==='page-next'?1:-1;render();return;}
  if(a==='pick-province'){flowChooseProvince(val);return;}
- if(a==='city-done'){if(!state.province||!state.city.trim()){toast('Enter your province and community first.');return;}state.locationConfirmed=true;flowMove('location-review');return;}
+ if(a==='city-done'){if(!state.province||!state.city.trim()){toast('Enter your province and community first.');return;}state.locationConfirmed=true;flowMove(flowMunicipalityPending()?'municipality':'location-review');return;}
  if(a==='edit-city'){flowMove(state.province?'city':'province');return;}
- if(a==='confirm-city'){state.locationConfirmed=true;flow.district=0;flowMove(lookup&&flowDistricts().length?'district':'location-review');return;}
+ if(a==='confirm-city'){state.locationConfirmed=true;flow.district=0;flowMove(flowMunicipalityPending()?'municipality':lookup&&flowDistricts().length?'district':'location-review');return;}
+ if(a==='municipality'){flowMove('municipality');return;}
+ if(a==='pick-municipality'){
+  const choice=E.municipalityFor(state).choices.find(o=>o.name===val);if(!choice)return;
+  state.municipality=choice.name;state.ward='';state.liveChosen=state.liveChosen.filter(id=>!state.liveReps.some(r=>r.id===id&&r.level==='municipal'));invalidate();flow.municipalitySkipped='';
+  flowMove(step===2?'recipients':lookup&&flowDistricts().length?'district':'location-review');return;
+ }
+ if(a==='municipality-skip'){state.municipality='';state.ward='';state.liveChosen=state.liveChosen.filter(id=>!state.liveReps.some(r=>r.id===id&&r.level==='municipal'));invalidate();flow.municipalitySkipped=flowMunicipalityKey();flowMove(step===2?'recipients':'location-review');return;}
  if(a==='lookup-run'){flow.lookupStarted=true;startLookup();return;}
  if(a==='suggest-run'){suggestLocation();return;}
  if(a==='lookup-details'){flowLookupDetails();return;}

@@ -1,5 +1,5 @@
 (function(root){'use strict';
-const manifest=root.CivicWebManifest,R=root.CivicDirectory,M=root.CivicOfflineData,E=root.CivicEngine;
+const manifest=root.CivicWebManifest,R=root.CivicDirectory,M=root.CivicOfflineData,E=root.CivicEngine,D=root.CivicData;
 const base=new URL('./',root.location.href);
 const cacheName='civicpost-web:'+base.pathname+':'+manifest.release;
 const pending=new Map(),jsonCache=new Map(),provinceCache=new Map(),contactFiles=new Set(),contacts=new Set(),routes=new Set(),districts=new Set(),scripts=new Map();
@@ -63,10 +63,21 @@ function ingest(value,file){
   contactFiles.add(file.path);
 }
 async function loadContacts(file){const value=await read(file);ingest(value,file);return value;}
+function ingestMunicipalPlaces(index,code){
+  const places=index.municipalPlaces;
+  if(!places)return;
+  D.municipalPlaces??={mappings:[],ambiguities:[]};
+  for(const key of ['mappings','ambiguities'])D.municipalPlaces[key]=[
+    ...D.municipalPlaces[key].filter(x=>x.province!==code),
+    ...(places[key]||[]).filter(x=>x.province===code)
+  ];
+  D.municipalPlaces.checked=places.checked||D.municipalPlaces.checked;
+  for(const city of index.municipalCities||[])if(city.province===code&&!D.cities.some(c=>c.province===code&&c.name===city.name))D.cities.push(city);
+}
 async function province(code){
   if(!manifest.directory.provinces[code])return null;
   if(!provinceCache.has(code)){
-    const task=Promise.all([loadContacts(manifest.directory.global),loadContacts(manifest.directory.provinces[code])]).then(([,index])=>index);
+    const task=Promise.all([loadContacts(manifest.directory.global),loadContacts(manifest.directory.provinces[code])]).then(([,index])=>{ingestMunicipalPlaces(index,code);return index;});
     provinceCache.set(code,task);task.catch(()=>provinceCache.delete(code));
   }
   return provinceCache.get(code);
@@ -82,12 +93,12 @@ function cityFiles(index,city,code){
 async function ensureLocation(s){
   if(!s.province)return;
   const index=await region(s.province);if(!index)return;
-  const files=cityFiles(index,s.city,s.province);
+  const files=cityFiles(index,E.municipalityFor(s).name||s.city,s.province);
   if(index.boards[s.schoolBoard])files.push(index.boards[s.schoolBoard]);
   await Promise.all(files.map(loadContacts));
   E.refreshDirectory();
 }
-function locationKey(s){return JSON.stringify([s.province||'',E.norm(s.city),s.schoolBoard||'']);}
+function locationKey(s){return JSON.stringify([s.province||'',E.norm(s.city),s.municipality||'',s.schoolBoard||'']);}
 const baseMunicipalities=E.municipalityNames,baseJurisdictions=E.jurisdictions;
 E.municipalityNames=code=>[...new Set([...baseMunicipalities(code),...Object.values(loadedIndexes.get(code)?.cities||{}).map(x=>x.name)])].sort((a,b)=>a.localeCompare(b));
 E.jurisdictions=(code,level)=>[...new Set([...baseJurisdictions(code,level),...(!level||level==='school'?Object.keys(loadedIndexes.get(code)?.boards||{}):[])])].sort((a,b)=>a.localeCompare(b));
