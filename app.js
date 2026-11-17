@@ -56,6 +56,7 @@ function lookupChoices(){
  const levels=['federal','provincial','municipal'];
  const coverage=levels.map(level=>{const reps=lookup.reps.filter(r=>r.level===level),emails=reps.filter(r=>r.email);return `<li><b>${levelNames[level]}:</b> ${reps.length?(emails.length?'District found · email available':'District found · official contact page available'):'No district in this result · use the official finder'}</li>`;}).join('');
  const warnings=[];
+ if(offline?.coordinateReview)warnings.push('The postal source names '+offline.coordinateReview.locality+' but places its point in Toronto. District suggestions are withheld. Confirm your community and use the official ward and riding finders.');
  if(offline?.upcomingDistricts?.length)warnings.push('A later boundary edition is installed and will be used from its effective local date. Current districts remain shown until then.');
  if(offline?.expiredDistricts?.length)warnings.push('Some downloaded boundaries have expired: '+[...new Set(offline.expiredDistricts.map(d=>d.city+' (through '+d.validUntil+')'))].join(', ')+'. Use the current official finder.');
  if(offline?.districts?.some(d=>d.status==='member-verification-pending'&&(downloaded||result?.retainedLevels?.includes(d.level))))warnings.push('This district is mapped, but the current officeholder is awaiting verification after an election. An old member email is not substituted.');
