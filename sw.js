@@ -1,5 +1,5 @@
 'use strict';
-const RELEASE='72b3eb36acc7b4d61449';
+const RELEASE='1af8d21022a20cf20684';
 const BASE=new URL('./',self.location.href);
 const PREFIX='civicpost-web:'+BASE.pathname+':';
 const CACHE=PREFIX+RELEASE;
