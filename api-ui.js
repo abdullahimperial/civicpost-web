@@ -52,7 +52,7 @@ render=function(){
 document.addEventListener('click',event=>{
   const target=event.target.closest('button,a');if(!target)return;
   if(target.dataset.web==='retry-location'){webErrors.delete(webCurrentKey());webReady.delete(webCurrentKey());render();return;}
-  if(webNeedsData()&&(target.id==='send-link'||['share-draft','download','copy-recipients'].includes(target.dataset.action))){event.preventDefault();event.stopImmediatePropagation();toast('Reconnect and refresh the office contacts before sending or sharing.');}
+  if(webNeedsData()&&(target.id==='send-link'||['share-email-qr','share-draft','download','copy-recipients'].includes(target.dataset.action))){event.preventDefault();event.stopImmediatePropagation();toast('Reconnect and refresh the office contacts before sending or sharing.');}
 },true);
 const directoryRenderCore=renderDirectoryResults;
 let searchTimer=null,searchController=null,searchSequence=0;

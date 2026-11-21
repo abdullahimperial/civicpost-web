@@ -2,20 +2,87 @@
 let pendingAppIntent='',sharedExport=null,sharedToken='',pendingImport=null,cameraStream=null,cameraTimer=null,shareGeneration=0,importGeneration=0;
 const SH=CivicSharing;
 function stopQRScanner(){clearTimeout(cameraTimer);cameraTimer=null;if(cameraStream)for(const track of cameraStream.getTracks())track.stop();cameraStream=null;}
-function qrCanvas(value){
- if(value.length>2200)throw Error('This message is too long for a reliable single QR code. Download the draft file below; it keeps the full message.');
- let qr=qrcode(0,'M');qr.addData(value);qr.make();
- // Avoid version 23, which the bundled reader has a known alignment edge case with.
- if(qr.getModuleCount()===109){qr=qrcode(24,'M');qr.addData(value);qr.make();}
- const modules=qr.getModuleCount(),scale=Math.max(4,Math.floor(900/(modules+8))),size=(modules+8)*scale;
- const c=document.createElement('canvas');c.width=size;c.height=size;c.className='draft-qr';c.setAttribute('aria-label','QR code containing this draft and its recipients');c.setAttribute('role','img');
- const ctx=c.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,size,size);ctx.fillStyle='#000000';for(let row=0;row<modules;row++)for(let col=0;col<modules;col++)if(qr.isDark(row,col))ctx.fillRect((col+4)*scale,(row+4)*scale,scale,scale);return c;
+async function loadQRTools(){
+ const scripts=[];
+ if(!window.qrcode)scripts.push(window.CivicWeb.script('vendor/qrcode.js'));
+ if(!window.jsQR)scripts.push(window.CivicWeb.script('vendor/jsQR.js'));
+ await Promise.all(scripts);
+}
+function drawQR(matrix,label){
+ const modules=matrix.getModuleCount(),scale=Math.max(4,Math.floor(900/(modules+8)));
+ const canvas=document.createElement('canvas');
+ canvas.width=canvas.height=(modules+8)*scale;
+ canvas.className='draft-qr';
+ canvas.setAttribute('aria-label',label);
+ canvas.setAttribute('role','img');
+ const ctx=canvas.getContext('2d');
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+ ctx.fillStyle='#000';
+ for(let row=0;row<modules;row++){
+  for(let col=0;col<modules;col++){
+   if(matrix.isDark(row,col))ctx.fillRect((col+4)*scale,(row+4)*scale,scale,scale);
+  }
+ }
+ return canvas;
+}
+function qrCanvas(value,label){
+ const tooLong='This message is too long for a reliable single QR code. Shorten the message or share the full CivicPost draft file.';
+ if(value.length>2200)throw Error(tooLong);
+ const preview=document.createElement('canvas');
+ preview.width=preview.height=384;
+ const ctx=preview.getContext('2d',{willReadFrequently:true});
+ let version=0;
+ for(let attempt=0;attempt<4 && version<=40;attempt++){
+  const matrix=qrcode(version,'M');
+  matrix.addData(value);
+  try{matrix.make();}catch{throw Error(tooLong);}
+  const canvas=drawQR(matrix,label);
+  ctx.drawImage(canvas,0,0,preview.width,preview.height);
+  const image=ctx.getImageData(0,0,preview.width,preview.height);
+  if(jsQR(image.data,image.width,image.height,{inversionAttempts:'dontInvert'})?.data===value)return canvas;
+  // The same payload can scan differently when its alignment patterns change.
+  version=(matrix.getModuleCount()-17)/4+1;
+ }
+ throw Error('This QR could not be read at phone size. Shorten the message or share the full CivicPost draft file.');
+}
+function renderShareQR(value, label, filename){
+ const stage=$('#draft-qr-stage');
+ try{
+  const canvas=qrCanvas(value,label);
+  canvas.dataset.filename=filename;
+  stage.append(canvas);
+  $('#qr-size-note').textContent=window.MoneySnapshotAndroid
+   ? 'Take a screenshot to share this code. Keep the white border.'
+   : 'Share the original QR image with its white border.';
+ }catch(error){
+  stage.textContent=error.message || 'This draft is too large for one QR code.';
+  const download=document.querySelector('[data-action="qr-image"]');
+  if(download)download.disabled=true;
+ }
+}
+async function showEmailQR(){
+ stopQRScanner();
+ importGeneration++;
+ const generation=++shareGeneration;
+ try{
+  const message=String(state.body||'').replace(/\r\n|\r|\n/g,'\r\n');
+  const mailto=E.mailto({...state,body:message});
+  modal('<h2>Email QR</h2><p>Preparing the QR code…</p>');
+  await loadQRTools();
+  if(generation!==shareGeneration||!$('#dialog').open)return;
+  modal(`<h2>Email QR</h2><p>Scan with a phone camera to open an email draft. Everyone gets the same recipients, subject and message. You can edit the email before sending.</p>
+   <div id="draft-qr-stage" class="qr-stage"></div><p id="qr-size-note" class="small muted"></p>
+   <div class="row">${!window.MoneySnapshotAndroid?button('Download email QR','qr-image','secondary small'):''}${button('CivicPost QR (opens draft)','share-draft','secondary small')}</div>`);
+  renderShareQR(mailto,'QR code to open a prefilled email','CivicPost_Email_QR.png');
+ }catch(error){
+  if(generation===shareGeneration)toast(error.message);
+ }
 }
 async function showShareDraft(){
  stopQRScanner();importGeneration++;const generation=++shareGeneration;
- try{await CivicWeb.script('vendor/qrcode.js');sharedExport=SH.fromState(state);sharedToken='';modal(`<h2>Share this draft.</h2><p class="small">Preparing the QR code on your device…</p>`);sharedToken=await SH.encode(sharedExport);if(generation!==shareGeneration||!$('#dialog').open)return;
-  modal(`<p class="section-kicker">SHARE A DRAFT</p><h2>A message others can open.</h2><p>The QR code contains your selected recipients, subject and message. Anyone with it can read them. Remove personal details before sharing.</p><div id="draft-qr-stage" class="qr-stage"></div><p id="qr-size-note" class="small muted"></p><div class="row">${!window.MoneySnapshotAndroid?button('Download QR image','qr-image','secondary small'):''}${button('Copy share code','qr-copy','secondary small')}${button('Download draft file','qr-export','secondary small')}</div><p class="small muted">In CivicPost, choose <b>Import QR / draft</b> and select a QR image, paste the code, or open the draft file. A phone camera opens the public webpage. On Android, tap Open in CivicPost to try the installed app; automatic links for this new host require a later Android update. The web link opens this public CivicPost website. Importing a QR image or code inside the app works offline.</p>`);
-  try{const canvas=qrCanvas(SH.link(sharedToken));$('#draft-qr-stage').append(canvas);$('#qr-size-note').textContent=window.MoneySnapshotAndroid?'Take a screenshot to share this QR image. Keep the white border.':'Keep the white border and share the original image for reliable scanning.';}catch(e){$('#draft-qr-stage').textContent=e.message;const btn=document.querySelector('[data-action="qr-image"]');if(btn)btn.disabled=true;}
+ try{sharedExport=SH.fromState(state);sharedToken='';modal(`<h2>Share this draft.</h2><p class="small">Preparing the QR code on your device…</p>`);sharedToken=await SH.encode(sharedExport);await loadQRTools();if(generation!==shareGeneration||!$('#dialog').open)return;
+  modal(`<p class="section-kicker">SHARE A DRAFT</p><h2>CivicPost draft QR</h2><p>The QR code contains your selected recipients, subject and message. Anyone with it can read them. Remove personal details before sharing.</p><div id="draft-qr-stage" class="qr-stage"></div><p id="qr-size-note" class="small muted"></p><div class="row">${!window.MoneySnapshotAndroid?button('Download QR image','qr-image','secondary small'):''}${button('Copy share code','qr-copy','secondary small')}${button('Download draft file','qr-export','secondary small')}</div><p class="small muted">In CivicPost, choose <b>Import QR / draft</b> and select a QR image, paste the code, or open the draft file. A phone camera opens the public CivicPost draft preview. On Android you can also choose Open in CivicPost. Importing a QR image or code inside the app works offline.</p>`);
+  renderShareQR(SH.link(sharedToken), 'CivicPost draft QR code', 'CivicPost_Draft_QR.png');
  }catch(e){toast(e.message);}
 }
 function downloadSharedFile(){if(!sharedExport)return;const text=JSON.stringify(sharedExport,null,2);if(window.MoneySnapshotAndroid?.postMessage){window.MoneySnapshotAndroid.postMessage(JSON.stringify({type:'save',filename:'money-snapshot-civicpost-draft.json',text}));return;}downloadBlob(new Blob([text],{type:'application/json'}),'CivicPost_Draft.json');}
@@ -47,7 +114,10 @@ async function startQRScanner(){
  }catch{stopQRScanner();if($('#import-status'))$('#import-status').textContent='Camera access is unavailable or was declined. Choose a QR image instead.';}
 }
 document.addEventListener('change',e=>{if(e.target.id==='draft-file')importDraftFile(e.target.files?.[0]);});
-document.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.action;if(action==='qr-open-app'&&pendingAppIntent){window.location.assign(pendingAppIntent);return;}if(action==='qr-copy'&&sharedToken)copyText(sharedToken);if(action==='qr-export')downloadSharedFile();if(action==='qr-image')$('#draft-qr-stage canvas')?.toBlob(blob=>{if(blob)downloadBlob(blob,'CivicPost_Draft_QR.png');});if(action==='qr-preview')previewImported($('#draft-code').value);if(action==='qr-load')loadSharedDraft();if(action==='qr-camera')startQRScanner();if(action==='qr-stop'){stopQRScanner();const stage=$('#qr-camera-stage');if(stage)stage.innerHTML='';}});
+document.addEventListener('click',e=>{const action=e.target.closest('button')?.dataset.action;if(action==='qr-open-app'&&pendingAppIntent){window.location.assign(pendingAppIntent);return;}if(action==='qr-copy'&&sharedToken)copyText(sharedToken);if(action==='qr-export')downloadSharedFile();if(action==='qr-image'){
+ const canvas=$('#draft-qr-stage canvas');
+ canvas?.toBlob(blob=>{if(blob)downloadBlob(blob,canvas.dataset.filename);});
+}if(action==='qr-preview')previewImported($('#draft-code').value);if(action==='qr-load')loadSharedDraft();if(action==='qr-camera')startQRScanner();if(action==='qr-stop'){stopQRScanner();const stage=$('#qr-camera-stage');if(stage)stage.innerHTML='';}});
 $('#dialog').addEventListener('close',()=>{if($('#dialog').open)return;stopQRScanner();shareGeneration++;importGeneration++;});document.addEventListener('visibilitychange',()=>{if(document.hidden)stopQRScanner();});
 function openSharedFragment(){
  if(!location.hash.startsWith('#draft='))return;

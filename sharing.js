@@ -2,6 +2,7 @@
 const E=typeof module!=='undefined'?require('./engine.js'):root.CivicEngine;
 const D=typeof module!=='undefined'?require('./data.js'):root.CivicData;
 const PUBLIC_URL=new URL('./',root.location.href).href;
+const LEGACY_URL='https://civicpost-canada.ovalpear2.chatgpt.site/';
 const MAX_BYTES=100000,MAX_TEXT=18000,MAX_RECIPIENTS=100;
 const text=(v,max,label)=>{if(typeof v!=='string'||v.length>max)throw Error('Invalid or oversized '+label+'.');return v;};
 function validate(raw){
@@ -35,10 +36,16 @@ async function encode(payload){
  if(typeof CompressionStream!=='undefined'){const z=await transform(bytes,new CompressionStream('deflate'));return 'CP1Z.'+base64url(z);}
  return 'CP1J.'+base64url(bytes);
 }
+function isDraftAddress(url){
+ if(url.username || url.password || url.search) return false;
+ const site=new URL(PUBLIC_URL);
+ return (url.origin===site.origin && [site.pathname,new URL('index.html',site).pathname].includes(url.pathname))
+    || (url.origin+url.pathname===LEGACY_URL);
+}
 async function decode(input){
  let s=String(input||'').trim();if(s.length>140000)throw Error('This draft is too large.');
  if(s.startsWith('{')){try{return validate(JSON.parse(s));}catch(e){throw Error(e.message||'Invalid draft file.');}}
- if(/^https?:\/\//.test(s)){let u;try{u=new URL(s);}catch{throw Error('Invalid draft link.');}if(u.username||u.password||u.search||!((u.origin===new URL(PUBLIC_URL).origin&&[new URL(PUBLIC_URL).pathname,new URL('index.html',PUBLIC_URL).pathname].includes(u.pathname))||(u.origin==='https://civicpost-canada.ovalpear2.chatgpt.site'&&u.pathname==='/')))throw Error('This is not a CivicPost draft link.');s=new URLSearchParams(u.hash.slice(1)).get('draft')||'';}
+ if(/^https?:\/\//.test(s)){let u;try{u=new URL(s);}catch{throw Error('Invalid draft link.');}if(!isDraftAddress(u))throw Error('This is not a CivicPost draft link.');s=new URLSearchParams(u.hash.slice(1)).get('draft')||'';}
  const m=/^CP1([ZJ])\.([A-Za-z0-9_-]+)$/.exec(s);if(!m)throw Error('This QR code does not contain a CivicPost draft.');
  let bytes=unbase64(m[2]);if(m[1]==='Z'){if(typeof DecompressionStream==='undefined')throw Error('Update Android System WebView or your browser, or import the JSON draft file.');bytes=await transform(bytes,new DecompressionStream('deflate'));}
  if(bytes.length>MAX_BYTES)throw Error('This draft is too large.');let raw;try{raw=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw Error('The draft could not be read. It may be damaged.');}return validate(raw);
