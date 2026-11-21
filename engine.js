@@ -146,7 +146,9 @@ function cityFor(s){const municipality=municipalityFor(s);if(!municipality.name)
 function contactsFor(s){
  const p=D.provinces.find(p=>p.code===s.province);if(!p)return [];
  const issue=D.issues.find(i=>i.id===s.issue);if(!issue)return [];
- const levels=s.levels||issue.levels;const city=cityFor(s);let out=D.contacts.filter(c=>levels.includes(c.level)&&(!c.province||c.province===s.province)&&(!c.city||norm(c.city)===norm(s.city))&&(!c.ward||norm(c.ward)===norm(s.ward))&&(!c.issues||c.issues.includes(s.issue)));
+ const levels=s.levels||issue.levels;const online=root.CivicWeb?.androidRows?.(s);
+ if(online)return finishContacts(online,s,levels);
+ const city=cityFor(s);let out=D.contacts.filter(c=>levels.includes(c.level)&&(!c.province||c.province===s.province)&&(!c.city||norm(c.city)===norm(s.city))&&(!c.ward||norm(c.ward)===norm(s.ward))&&(!c.issues||c.issues.includes(s.issue)));
  const selectedLive=(root.CivicWeb?.reviewLiveContacts(s.liveReps||[],s)||[]).filter(r=>(s.liveChosen||[]).includes(r.id)&&levels.includes(r.level)&&currentRecord(r)&&!blockedLiveIdentity(r,s));
  out.push(...selectedLive);out.push(...(root.CivicWeb?.contactsForState(s)||[]));
  const matched=directoryMatches(s);
@@ -164,6 +166,9 @@ function contactsFor(s){
  if(levels.includes('community'))add('community-authority','Your Indigenous / community government','community','https://www.sac-isc.gc.ca/eng/1100100013785/1529102490303','Use the government and contact relevant to your community. No community affiliation is inferred from location.');
  if(s.opposition&&levels.includes('federal'))add('federal-opposition','Leader of the Official Opposition — federal','federal',D.federalLeaders,'Optional oversight contact. Use the official parliamentary directory; no permanent generic email has been verified.');
  if(s.opposition&&levels.includes('provincial')&&!['NT','NU'].includes(s.province))add('provincial-opposition','Official Opposition — '+p.name,'provincial',p.members,'Optional oversight contact. Select the opposition leader or relevant critic from the legislature’s official information.');
+ return finishContacts(out,s,levels);
+}
+function finishContacts(out,s,levels){
  out.push(...(s.custom||[]).filter(c=>levels.includes(c.level)&&c.province===s.province&&(!['municipal','school','community'].includes(c.level)||norm(c.city)===norm(s.city))));
  const seen=new Set();return out.sort((a,b)=>Number((s.selected||[]).includes(b.id))-Number((s.selected||[]).includes(a.id))||Number(b.emailType==='office')-Number(a.emailType==='office')).filter(c=>{const key=c.email?c.email.toLowerCase():c.id;if(seen.has(key))return false;seen.add(key);return true;});
 }
@@ -190,6 +195,25 @@ function contactRelevance(c,s){
  }
  return {score:60,reason:'Matches the government level and issue you selected.'};
 }
+// Only confirmed districts can populate the two local-member choices.
+function bankingOffices(s){
+ const p=D.provinces.find(province=>province.code===s.province);
+ if(!p||s.issue!=='banking')return [];
+ const contacts=contactsFor(s);
+ return (s.levels||[]).filter(level=>level==='federal'||level==='provincial').flatMap(level=>{
+  const federal=level==='federal',ridingKey=federal?'fedRiding':'provRiding',district=s[ridingKey];
+  const atLevel=contacts.filter(c=>c.level===level&&c.email);
+  return [
+   {key:level+'-finance',label:federal?'Federal finance ministry':p.name+' finance ministry',level,
+    source:federal?'https://www.canada.ca/en/department-finance/corporate/contact-us.html':p.government,
+    contacts:atLevel.filter(c=>c.scope==='ministry'&&c.issues?.includes('banking'))},
+   {key:level+'-member',label:federal?'Your federal MP':'Your '+p.title+' in '+p.name,level,ridingKey,district,
+    source:federal?D.federalMembers:p.members,
+    contacts:atLevel.filter(c=>district&&(c.scope==='riding'||c.kind==='live')&&!c.officeStaff&&!c.manualOnly&&
+     [c.district,...(c.districtAliases||[])].some(name=>name&&norm(name)===norm(district)))}
+  ];
+ });
+}
 function recipientGroups(s){
  const contacts=contactsFor(s),rank=c=>contactRelevance(c,s).score;
  const ordered=[...contacts].sort((a,b)=>rank(b)-rank(a)||Number(b.emailType==='office')-Number(a.emailType==='office'));
@@ -210,5 +234,5 @@ function draft(s){const issue=D.issues.find(i=>i.id===s.issue);const p=D.provinc
 }
 function mailto(s){const rec=selectedContacts(s);const to=rec.filter(c=>(s.recipientModes||{})[c.id]!=='cc').map(c=>c.email);const cc=rec.filter(c=>(s.recipientModes||{})[c.id]==='cc').map(c=>c.email);if(!to.length)throw Error('Choose at least one To recipient.');const subject=clean(s.subject).replace(/[\r\n]+/g,' ');const body=String(s.body||'');if(!subject||!body.trim())throw Error('Add a subject and a message first.');const params=new URLSearchParams();if(cc.length)params.set('cc',cc.join(','));params.set('subject',subject);params.set('body',body);return 'mailto:'+to.map(encodeURIComponent).join(',')+'?'+params.toString().replace(/\+/g,'%20');}
 function refreshDirectory(){directoryById.clear();for(const c of R.contacts)directoryById.set(c.id,c);searchable=R.contacts.map(c=>({c,text:norm([c.role,c.name,c.email,c.jurisdiction,c.city,c.district].join(' '))}));}
-const E={refreshDirectory,currentRecord,cityKey,municipalityFor,municipalScopeMatches,usableServiceRoute,servesCity,serviceMatches,districtMatches,norm,clean,emailValid,safeURL,postal,postalValid,parseLookup,roleEmail,publishedEmail,levelFor,contactsFor,contactRelevance,recipientGroups,coverageFor,selectedContacts,draft,mailto,cityFor,directorySearch,directoryMatches,directoryEligible,jurisdictions,ridings,municipalityNames,directoryById};if(typeof module!=='undefined')module.exports=E;root.CivicEngine=E;
+const E={refreshDirectory,currentRecord,cityKey,municipalityFor,municipalScopeMatches,usableServiceRoute,servesCity,serviceMatches,bankingOffices,districtMatches,norm,clean,emailValid,safeURL,postal,postalValid,parseLookup,roleEmail,publishedEmail,levelFor,contactsFor,contactRelevance,recipientGroups,coverageFor,selectedContacts,draft,mailto,cityFor,directorySearch,directoryMatches,directoryEligible,jurisdictions,ridings,municipalityNames,directoryById};if(typeof module!=='undefined')module.exports=E;root.CivicEngine=E;
 })(typeof globalThis!=='undefined'?globalThis:this);

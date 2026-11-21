@@ -74,7 +74,7 @@ issuePanel=function(){
  const issue=D.issues.find(i=>i.id===state.issue);
  if(flow.view==='issues')return flowShell('What would you like to raise?','Choose the closest topic.',flowPages(D.issues,i=>`<button class="choice-tile ${state.issue===i.id?'chosen':''}" data-issue="${i.id}" aria-pressed="${state.issue===i.id}">${icon(i.icon)}<span><b>${esc(i.name)}</b></span><span class="tile-arrow" aria-hidden="true">›</span></button>`,4));
  if(flow.view==='service')return flowShell('Which local service?','Different providers can handle these services.',`<div class="choice-grid">${[['garbage','Garbage & organics'],['recycling','Recycling / Blue Box'],['water','Water & sewer'],['','All / not sure']].map(([id,n])=>tile(n,'','pick-service','leaf',`data-value="${id}"`)).join('')}</div>`,{skip:'Skip refinement',skipAction:'service-skip'});
- return flowShell('Who should hear about it?','Suggested levels are selected. Adjust them if needed.',`<div class="level-choices">${Object.entries(levelNames).map(([l,name])=>`<button class="level-choice ${state.levels.includes(l)?'chosen':''}" data-flow="toggle-level" data-value="${l}" aria-pressed="${state.levels.includes(l)}">${icon(state.levels.includes(l)?'check':'building')}<span>${name}</span></button>`).join('')}</div>${flowBtn('Responsibilities & guidance','issue-details','text-button')}`,{next:'Find offices →',action:'next-stage'});
+ return flowShell('Who should hear about it?','Suggested levels are selected. Adjust them if needed.',`<div class="level-choices">${Object.entries(levelNames).filter(([l])=>state.issue!=='banking'||issue.levels.includes(l)).map(([l,name])=>`<button class="level-choice ${state.levels.includes(l)?'chosen':''}" data-flow="toggle-level" data-value="${l}" aria-pressed="${state.levels.includes(l)}">${icon(state.levels.includes(l)?'check':'building')}<span>${name}</span></button>`).join('')}</div>${flowBtn('Responsibilities & guidance','issue-details','text-button')}`,{next:'Find offices →',action:'next-stage'});
 };
 function flowContactGroups(){const g=E.recipientGroups(state);return {...g,selected:E.selectedContacts(state)};}
 function flowContactDetails(id){const c=E.contactsFor(state).find(c=>c.id===id)||E.selectedContacts(state).find(c=>c.id===id);if(c)modal(`<h2>Office details</h2>${contactCard(c)}`);}
@@ -82,12 +82,47 @@ function flowContactCard(c){
  const selected=state.selected.includes(c.id),label=c.kind==='shared'?'Shared draft · verify':c.kind==='custom'?'Added by you':c.email?(c.serviceProvider?'Service provider inbox':c.emailType==='office'||c.kind==='curated'?'Office / role inbox':'Published work email'):c.kind==='service-route'?'Official service channel':'Official finder';
  return `<article class="flow-contact ${selected?'selected':''}" data-office="${esc(c.id)}"><div class="office-label">${icon(c.email?'mail':'globe')}<span>${label}</span>${selected?'<span class="selected-mark">Added ✓</span>':''}</div><h3>${esc(c.role)}${c.district?' — '+esc(c.district):''}</h3><p class="office-place">${esc(c.jurisdiction||c.city||c.province||'Canada')}${c.name?' · '+esc(c.name):''}</p>${c.email?`<p class="contact-email">${esc(c.email)}</p>`:''}${c.phone?`<p class="published-phone">Published phone: ${esc(c.phone)}</p>`:''}${c.specialist?'<p class="specialist-note">Specific service only · check details</p>':''}<p class="office-purpose">${esc(c.servicePurpose||E.contactRelevance(c,state).reason)}</p><div class="office-tools">${flowBtn('Details & source','contact-details','text-button',`data-value="${esc(c.id)}"`)}${c.email?`<div class="mode-buttons" aria-label="Recipient type"><button data-flow="mode" data-value="to" data-id="${esc(c.id)}" aria-pressed="${state.recipientModes[c.id]!=='cc'}">To</button><button data-flow="mode" data-value="cc" data-id="${esc(c.id)}" aria-pressed="${state.recipientModes[c.id]==='cc'}">Cc</button></div>`:''}</div><div class="office-decisions">${c.email?flowBtn(selected?'Remove recipient':'Add recipient','add-recipient',selected?'secondary':'',`data-value="${esc(c.id)}"`):`<a class="button" href="${esc(E.safeURL(c.source))}" target="_blank" rel="noopener noreferrer">Open official page ↗</a>`}${flowBtn('Skip →','next-contact','secondary')}</div></article>`;
 }
+function bankingRecipients(count){
+ const choices=E.bankingOffices(state).map(group=>{
+  const selected=group.contacts.filter(c=>state.selected.includes(c.id)).length;
+  const status=selected?selected+' selected':group.ridingKey&&!group.district?'Choose your riding':group.district||'Review office';
+  return tile(esc(group.label),esc(status),'banking-office',selected?'check':'building',`data-value="${esc(group.key)}"`);
+ });
+ return flowShell('Choose your banking & finance recipients.','Choose any combination. Each office opens separately.',
+  '<div class="choice-grid">'+choices.join('')+'</div>'+flowBtn('More recipient options','recipient-options','text-button'),
+  {next:count?'Continue ('+count+') →':'Continue without email →',action:'recipients-done'});
+}
+function bankingOfficeDialog(key){
+ const group=E.bankingOffices(state).find(g=>g.key===key);if(!group)return;
+ const cards=group.contacts.map(contactCard).join('');
+ let riding='';
+ if(group.ridingKey){
+  const options=E.ridings(state.province,group.level);
+  riding=`<label class="field">Riding<select id="banking-riding"><option value="">Choose your riding</option>${options.map(d=>`<option value="${esc(d)}"${d===group.district?' selected':''}>${esc(d)}</option>`).join('')}</select></label>`+
+   flowBtn('Use this riding','banking-riding','secondary small',`data-value="${esc(group.key)}"`);
+ }
+ const fallback=cards?'':`<p>${group.ridingKey&&!group.district?'Confirm your riding to find your member.':'A verified office email is unavailable for this choice.'}</p><a href="${esc(E.safeURL(group.source))}" target="_blank" rel="noopener noreferrer">Open official directory ↗</a>`;
+ modal(`<h2>${esc(group.label)}</h2>${cards}${fallback}${riding}${flowBtn('Done','banking-done')}`);
+}
+function setBankingRiding(key){
+ const group=E.bankingOffices(state).find(g=>g.key===key),district=$('#banking-riding')?.value;
+ if(!group?.ridingKey||!district||!E.ridings(state.province,group.level).includes(district))return;
+ if(group.district!==district){
+  const oldIds=new Set(group.contacts.map(c=>c.id));
+  state.selected=state.selected.filter(id=>!oldIds.has(id));
+  state.directoryAdded=state.directoryAdded.filter(id=>!oldIds.has(id));
+  state.liveChosen=state.liveChosen.filter(id=>!state.liveReps.some(r=>r.id===id&&r.level===group.level));
+  state[group.ridingKey]=district;
+ }
+ $('#dialog').close();render();
+}
 contactsPanel=function(){
  if(flow.view==='board'||flow.view==='board-manual')return flowBoard();
  if(flow.view==='municipality')return flowMunicipality();
  if(state.levels.includes('municipal')&&flowMunicipalityPending()&&flow.municipalitySkipped!==flowMunicipalityKey())return flowMunicipality();
  const count=E.selectedContacts(state).length,coverage=E.coverageFor(state),groups=flowContactGroups();
  if(flow.view==='recipients-done')return flowShell(count?'Your recipients are ready.':'You can still write a message.',count?`${count} email recipient${count===1?'':'s'} selected. Review before opening your email app.`:'No email recipient is selected. Copy your draft for an official service form, or add a contact.',`<div class="choice-stack">${count?tile('Review selected recipients','Check addresses and To / Cc','selected','mail'):''}${tile('Browse more offices','Suggested offices and service channels','recipients','building')}${tile('Directory & more options','Opposition, school board or a verified contact','recipient-options','people')}</div>`,{next:'Write message →',action:'next-stage'});
+ if(state.issue==='banking'&&flow.view==='recipients'&&flow.group==='main')return bankingRecipients(count);
  const available=['main','serviceRoutes','additional','finders'];if(!groups[flow.group]?.length&&flow.group!=='selected')flow.group=available.find(k=>groups[k].length)||'main';
  const list=groups[flow.group]||[];flow.page=Math.min(flow.page,Math.max(0,list.length-1));
  const labels={school:'School contacts',main:'Suggested offices',additional:'Additional offices',serviceRoutes:'Service channels',finders:'Official finders',selected:'Selected recipients'};
@@ -140,6 +175,9 @@ document.addEventListener('click',e=>{
  if(lookupPending&&lookupResult)lookupInteracted=true;
  e.preventDefault();e.stopImmediatePropagation();const a=t.dataset.flow,val=t.dataset.value;
  const close=()=>{if($('#dialog').open)$('#dialog').close();};
+ if(a==='banking-office'){bankingOfficeDialog(val);return;}
+ if(a==='banking-riding'){setBankingRiding(val);return;}
+ if(a==='banking-done'){close();return;}
  if(a==='back'){flowBack();return;}
  if(a==='page-next'||a==='page-prev'){flow.page+=a==='page-next'?1:-1;render();return;}
  if(a==='pick-province'){flowChooseProvince(val);return;}

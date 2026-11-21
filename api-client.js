@@ -1,5 +1,5 @@
 (function(root){'use strict';
-const web=root.CivicWeb,E=root.CivicEngine,R=root.CivicDirectory;
+const web=root.CivicWeb,E=web.contactEngine||root.CivicEngine,R=web.contactDirectory||root.CivicDirectory;
 const fields=['province','city','municipality','ward','provRiding','fedRiding','schoolBoard','issue','serviceDetail'];
 const results=new Map(),pending=new Map();
 let apiRelease='';
