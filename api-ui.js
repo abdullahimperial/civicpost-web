@@ -13,13 +13,14 @@ flowContactGroups=function(){
   return {...groups,school};
 };
 function webCurrentKey(){return web.locationKey(state);}
-function webNeedsData(){return !web.usingBundle?.()&&!!state.province&&(Date.now()-(webReady.get(webCurrentKey())||0)>300000||state.city&&state.issue&&state.levels.length&&!web.lookupInfo(state));}
+function postalLocationView(){return step===0&&(flow.view==='postal'||flow.view==='city-confirm'&&!!lookupResult);}
+function webNeedsData(){return !postalLocationView()&&!web.usingBundle?.()&&!!state.province&&(Date.now()-(webReady.get(webCurrentKey())||0)>300000||state.city&&state.issue&&state.levels.length&&!web.lookupInfo(state));}
 function webEnsure(){
   const key=webCurrentKey();if(!webNeedsData()||webLoading.has(key)||webErrors.has(key))return;
   const snapshot={...state,levels:[...state.levels],directoryAdded:[...state.directoryAdded]};
   webLoading.add(key);
   web.ensureLocation(snapshot).then(()=>{webReady.set(key,Date.now());webErrors.delete(key);},error=>webErrors.set(key,error.message)).finally(()=>{
-    webLoading.delete(key);if(key===webCurrentKey())render();
+    webLoading.delete(key);if(key===webCurrentKey()&&!postalLocationView())render();
   });
 }
 render=function(){

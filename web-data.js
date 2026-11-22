@@ -129,10 +129,15 @@ async function lookup(value,{signal}={}){
   const row=part.rows?.[postal];if(!row)return null;
   // Keep every exact-code candidate and all original provenance/expiry fields.
   // A prefix chooses a file, never a representative or approximate substitute.
-  const codes=[...new Set(row[0].map(i=>part.cities[i][0]))];
-  await waitFor(Promise.all(codes.map(region)),signal);
-  const locations=[...row[0].map(i=>part.cities[i]),...row[1].map(i=>part.districts[i]).filter(d=>d.city).map(d=>[d.province,d.city])];
-  await waitFor(Promise.all(locations.map(([province,city])=>ensureLocation({province,city}))),signal);
+  // API sites have all postal geography in this shard. Offices load after
+  // location confirmation and issue selection. Legacy static sites join their
+  // bundled directory here so the shared decoder can attach office records.
+  if(manifest.contactMode!=='api'){
+    const codes=[...new Set(row[0].map(i=>part.cities[i][0]))];
+    await waitFor(Promise.all(codes.map(region)),signal);
+    const locations=[...row[0].map(i=>part.cities[i]),...row[1].map(i=>part.districts[i]).filter(d=>d.city).map(d=>[d.province,d.city])];
+    await waitFor(Promise.all(locations.map(([province,city])=>ensureLocation({province,city}))),signal);
+  }
   checkAbort(signal);
   const bytes=new TextEncoder().encode(JSON.stringify(part));
   // The shared decoder validates its input again; the original file integrity

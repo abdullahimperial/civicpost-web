@@ -131,7 +131,7 @@ async function startLookup(){
   const response=await CivicOffline.resolve(postal,{signal:lookupAbort.signal,onLocal:result=>{if(!current())return;applyLookupResult(result,true);lookupStatus='Database result ready. Checking the live API for updates…';render();}});
   if(!current())return;
   if(response.result.source==='bundled'){
-   lookupStatus='Live lookup unavailable. Keeping the downloaded database result.';
+   lookupStatus='Postal code matched in the CivicPost database. Live representative updates are unavailable.';
    if(!lookupResult)applyLookupResult(response.result,true);
   }else if(lookupInteracted&&lookupResult){
    lookupUpdated=response.result;lookupStatus='Updated results are ready. Your current choices are kept until you choose to use the update.';
