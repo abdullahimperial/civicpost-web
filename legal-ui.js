@@ -16,6 +16,7 @@ function deleteCivicData(){
  saved=[];rememberLocation=false;state=initial();step=0;editor='guide';
  // Shared links may contain a private draft; remove that payload from this session URL.
  if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+ if(document.documentElement.dataset.webAgreement){location.reload();return true;}
  $('#dialog').close();render();toast('Saved app data and the current letter were cleared. Exports and emails are unchanged.');return true;
 }
 document.addEventListener('click',e=>{
@@ -34,6 +35,6 @@ document.addEventListener('click',e=>{
 // Informational notice only: it is not ad consent, a legal waiver or a condition to use the app.
 // Do not obscure an imported-link preview or any dialog already opened by the user.
 setTimeout(()=>{let seen=false;try{seen=localStorage.getItem('civicpost-notice-v1')===legalContent.version;}catch{}
- if(seen||location.hash||$('#dialog').open)return;
+ if(document.documentElement.dataset.webAgreement||seen||location.hash||$('#dialog').open)return;
  modal('<div class="legal-copy"><p class="section-kicker">BEFORE YOU START</p><h2>Your words. Your choice.</h2><p>CivicPost is independent and is not a government service. Verify office details and review your message before sending. It is not for emergencies or official deadlines.</p><p>Your draft stays on this device until you choose to share or open it in an email service. Online location options disclose what they send.</p><div class="legal-actions"><button class="button" data-legal="notice-done">Continue</button><button class="button secondary" data-legal="home">Privacy, terms &amp; safety</button></div></div>');
 },0);
