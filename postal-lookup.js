@@ -7,9 +7,11 @@ function failure(code,message){const e=new Error(message);e.code=code;return e;}
 function validate(data,postal){
  if(!data||typeof data!=='object'||Array.isArray(data))throw failure('invalid-response','The lookup service returned an unreadable response.');
  if(normalize(data.code)!==postal)throw failure('invalid-response','The lookup service returned a different postal code. Nothing was applied.');
- if(!Array.isArray(data.representatives_centroid)||!Array.isArray(data.representatives_concordance))throw failure('invalid-response','The lookup service did not return its expected representative data.');
- if(data.representatives_centroid.length+data.representatives_concordance.length>1000)throw failure('invalid-response','The lookup service returned too many matches. Use its website to check this code.');
- return data;
+ // Represent can omit either collection when it has no matching rows.
+ const {representatives_centroid:centroid=[],representatives_concordance:concordance=[]}=data;
+ if((data.representatives_centroid===undefined&&data.representatives_concordance===undefined)||!Array.isArray(centroid)||!Array.isArray(concordance))throw failure('invalid-response','The lookup service did not return its expected representative data.');
+ if(centroid.length+concordance.length>1000)throw failure('invalid-response','The lookup service returned too many matches. Use its website to check this code.');
+ return {...data,representatives_centroid:centroid,representatives_concordance:concordance};
 }
 function url(value,browser=false){if(!valid(value))throw failure('invalid-postal','Enter a complete Canadian postal code, such as T5K 1E7.');return ENDPOINT+normalize(value)+'/'+(browser?'?format=apibrowser':'');}
 async function readJSON(response,signal){
@@ -53,7 +55,7 @@ function save(result,storage=root.localStorage){
  storage.setItem(CACHE_KEY,text);
 }
 function saved(value,storage,now=Date.now()){
- try{storage=storage||root.localStorage;const text=storage.getItem(CACHE_KEY);if(!text||text.length>MAX_BYTES)return null;const r=JSON.parse(text),age=now-Date.parse(r.fetchedAt);if(!Number.isFinite(age)||age<0||age>MAX_AGE){storage.removeItem(CACHE_KEY);return null;}if(r.version!==1||r.postal!==normalize(value)||!valid(r.postal))return null;validate(r.data,r.postal);return r;}catch{return null;}
+ try{storage=storage||root.localStorage;const text=storage.getItem(CACHE_KEY);if(!text||text.length>MAX_BYTES)return null;const r=JSON.parse(text),age=now-Date.parse(r.fetchedAt);if(!Number.isFinite(age)||age<0||age>MAX_AGE){storage.removeItem(CACHE_KEY);return null;}if(r.version!==1||r.postal!==normalize(value)||!valid(r.postal))return null;return {...r,data:validate(r.data,r.postal)};}catch{return null;}
 }
 function remove(storage=root.localStorage){storage.removeItem(CACHE_KEY);}
 const api={lookup,normalize,valid,url,validate,save,saved,remove,MAX_AGE,MAX_BYTES};

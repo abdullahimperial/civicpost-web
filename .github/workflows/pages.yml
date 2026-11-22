@@ -20,6 +20,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+        with:
+          fetch-depth: 8
+          persist-credentials: false
+      - name: Include geography requested by recently installed versions
+        run: bash .github/scripts/stage_previous_geography.sh
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

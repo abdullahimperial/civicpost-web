@@ -86,7 +86,10 @@ function mergeResults(fallback,live){
  const province=value=>D.provinces.find(p=>p.code===value||E.norm(p.name)===E.norm(value))?.code||value;
  if(live.data.province&&fallback.data.province&&province(live.data.province)!==province(fallback.data.province))throw Object.assign(new Error('The live result conflicts with the downloaded province. Keeping the downloaded result; confirm your location on an official finder.'),{code:'conflicting-province'});
  const changes=[...liveLevels].filter(level=>{const before=[...new Set(previous.filter(r=>E.levelFor(r)===level).map(r=>E.norm(r.district_name)))].sort();const after=[...new Set(current.filter(r=>E.levelFor(r)===level).map(r=>E.norm(r.district_name)))].sort();return before.length&&JSON.stringify(before)!==JSON.stringify(after);});
- return {...live,source:retained.length?'mixed':'api',apiResult:live,offline:fallback.offline,changedLevels:changes,retainedLevels:[...new Set(retained.map(E.levelFor))],data:{...live.data,province:live.data.province||fallback.data.province,city:live.data.city||fallback.data.city,representatives_centroid:[...current,...retained],representatives_concordance:[]},recordSources:[...current.map(()=>({origin:'Open North',checked:live.fetchedAt.slice(0,10)})),...retained.map(r=>({origin:'the downloaded database',checked:r.source_checked||R.checked,trustedOfficeTypes:true}))]};
+ // Keep the displayed locality stable when the API only changes its casing.
+ const localCity=fallback.data.city,liveCity=live.data.city;
+ const city=!liveCity||E.norm(liveCity)===E.norm(localCity)?localCity:liveCity;
+ return {...live,source:retained.length?'mixed':'api',apiResult:live,offline:fallback.offline,changedLevels:changes,retainedLevels:[...new Set(retained.map(E.levelFor))],data:{...live.data,province:live.data.province||fallback.data.province,city,representatives_centroid:[...current,...retained],representatives_concordance:[]},recordSources:[...current.map(()=>({origin:'Open North',checked:live.fetchedAt.slice(0,10)})),...retained.map(r=>({origin:'the downloaded database',checked:r.source_checked||R.checked,trustedOfficeTypes:true}))]};
 }
 async function resolve(value,{signal,onLocal=()=>{},localLookup=local.lookup,onlineLookup=P.lookup}={}){
  let fallback=null,localError=null;
