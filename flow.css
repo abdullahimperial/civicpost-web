@@ -30,3 +30,10 @@ html:has(.tap-flow){height:100%;overflow:hidden}
 @media(max-width:700px){#panel[data-view="board"] .choice-grid{grid-template-columns:1fr}#panel[data-view="board"] .choice-tile{flex-direction:row;align-items:center;min-height:64px}.flow-contact .office-purpose{-webkit-line-clamp:1}}
 
 @media(max-height:680px){.tap-flow main:has(#panel[data-view="recipients"]) #flow-summary{display:none}}
+
+.help-video {border-top: 1px solid #c6d2cc; padding-block: .75rem}
+.help-video h3 {margin: 0 0 .65rem}
+.help-video-controls {display: flex; align-items: center; flex-wrap: wrap; gap: .75rem}
+.help-video-controls button[hidden] {display: none}
+.help-player {display: block; width: 100%; min-height: 200px; aspect-ratio: 16 / 9; margin: 0 auto .75rem; border: 0; background: #111}
+.help-player.portrait {width: min(100%, max(200px, 34vh)); aspect-ratio: 9 / 16}

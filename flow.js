@@ -166,7 +166,62 @@ function flowChooseDistrict(id){const level=flowDistricts()[flow.district];if(!l
 function flowBoardDone(){flowMove(step===2?'recipients':flow.returnView==='location-details'?'location-details':'location-review');}
 function flowRecipientOptions(){modal(`<h2>Recipient options</h2><div class="choice-stack">${tile(state.opposition?'Opposition included ✓':'Include opposition','Relevant oversight offices only','opposition','people')}${state.levels.includes('school')?tile('Choose school authority',esc(state.schoolBoard||'Not selected'),'board','book'):''}${tile('Search the directory','Find another published office','directory-choose','building')}${tile('Add a verified contact','Use its published email and official source','custom-contact','mail')}${tile('Review selected recipients',E.selectedContacts(state).length+' selected','selected','check')}</div><p class="small">Access/privacy and specialist inboxes are only for their listed service. Coverage is broad but incomplete.</p>${state.opposition&&['NT','NU'].includes(state.province)?'<p>The Northwest Territories and Nunavut use consensus government and do not have a party-based Official Opposition.</p>':''}`);}
 function flowDraftTools(){modal(`<h2>Keep or share your draft</h2><div class="choice-stack">${button('Save draft on this device','save','secondary')}${button('Copy message','copy','secondary')}${button('Copy recipients','copy-recipients','secondary')}${button('Download .txt','download','secondary')}${button('Email QR (opens email app)','share-email-qr','secondary')}${button('CivicPost QR (opens draft)','share-draft','secondary')}</div><p class="small">Saving keeps the draft on this device. Anyone with a shared QR or draft file can read its message and recipients.</p>`);}
-function flowMenu(){modal(`<h2>CivicPost</h2><div class="choice-stack">${tile('Review current choices','Location, issue and recipients','summary','check')}${tile('Import QR / draft','Preview before loading','import','mail')}${tile('Saved drafts',saved.length+' on this device','saved','message')}${tile('Contact directory',R.stats.uniqueEmails.toLocaleString()+' distinct emails','directory','building')}${tile('Coverage & sources','Data, source dates and limitations','coverage','globe')}${tile('Privacy, terms & safety','Policies, data controls and advertising','about','lock')}</div><p class="small">Version 1.10.0 · Independent. Nonpartisan.</p>`);}
+const helpVideos = [
+ {id: 'PNxok9-XdKY', title: 'CivicPost Canada Short', short: true},
+];
+const helpChannelUrl = 'https://www.youtube.com/@CivicPostCanada';
+
+function showVideoHelp() {
+ const videos = helpVideos.map(video => {
+  const title = esc(video.title);
+  const watchUrl = video.short ? 'https://www.youtube.com/shorts/' + video.id : 'https://www.youtube.com/watch?v=' + video.id;
+  return `<section class="help-video">
+   <h3>${title}</h3>
+   <div class="help-video-controls">
+    ${flowBtn('Play here', 'play-help-video', '', `data-value="${video.id}" aria-label="Play ${title} here"`)}
+    <a href="${watchUrl}" target="_blank" rel="noopener noreferrer" aria-label="Watch ${title} on YouTube">Watch on YouTube ↗</a>
+   </div>
+  </section>`;
+ }).join('');
+ modal(`<h2>Help</h2><p>Choose a video to load the YouTube player. Videos need an internet connection.</p>
+  ${videos}<p><a href="${helpChannelUrl}" target="_blank" rel="noopener noreferrer">CivicPost Canada on YouTube ↗</a></p>
+  ${flowBtn('Back to menu', 'menu', 'secondary')}`);
+ $('#dialog-content h2').setAttribute('tabindex', '-1');
+ $('#dialog-content h2').focus();
+}
+
+function playHelpVideo(button) {
+ const video = helpVideos.find(item => item.id === button.dataset.value);
+ if (!video) return;
+ const previous = $('#dialog-content .help-player');
+ if (previous) {
+  previous.closest('.help-video').querySelector('button').hidden = false;
+  previous.remove();
+ }
+ const player = document.createElement('iframe');
+ player.className = 'help-player' + (video.short ? ' portrait' : '');
+ player.title = video.title;
+ player.allow = 'autoplay; encrypted-media; fullscreen; picture-in-picture';
+ player.allowFullscreen = true;
+ // Send only the embedding origin. Draft URLs may contain a shared message.
+ player.referrerPolicy = 'strict-origin';
+ const src = new URL('https://www.youtube-nocookie.com/embed/' + video.id);
+ src.searchParams.set('playsinline', '1');
+ src.searchParams.set('autoplay', '1');
+ if (location.hostname === 'appassets.androidplatform.net') {
+  src.searchParams.set('widget_referrer', 'https://ca.civicpost.app');
+ }
+ player.src = src.href;
+ button.closest('.help-video').querySelector('h3').after(player);
+ button.hidden = true;
+ player.focus();
+}
+
+$('#dialog').addEventListener('close', () => {
+ if (!$('#dialog').open) $('#dialog-content .help-player')?.remove();
+});
+
+function flowMenu(){modal(`<h2>CivicPost</h2><div class="choice-stack">${tile('Review current choices','Location, issue and recipients','summary','check')}${tile('Import QR / draft','Preview before loading','import','mail')}${tile('Saved drafts',saved.length+' on this device','saved','message')}${tile('Contact directory',R.stats.uniqueEmails.toLocaleString()+' distinct emails','directory','building')}${tile('Help','Watch CivicPost video guides','help','book')}${tile('Coverage & sources','Data, source dates and limitations','coverage','globe')}${tile('Privacy, terms & safety','Policies, data controls and advertising','about','lock')}</div><p class="small">Version 1.10.0 · Independent. Nonpartisan.</p>`);}
 document.addEventListener('click',e=>{
  const t=e.target.closest('button,a');if(!t)return;
  if(t.dataset.issue){flow.history.push({view:'issues',stage:1,page:flow.page,group:flow.group});flow.page=0;flow.view=t.dataset.issue==='waste'?'service':'levels';}
@@ -175,6 +230,8 @@ document.addEventListener('click',e=>{
  if(lookupPending&&lookupResult)lookupInteracted=true;
  e.preventDefault();e.stopImmediatePropagation();const a=t.dataset.flow,val=t.dataset.value;
  const close=()=>{if($('#dialog').open)$('#dialog').close();};
+ if(a==='help'){showVideoHelp();return;}
+ if(a==='play-help-video'){playHelpVideo(t);return;}
  if(a==='banking-office'){bankingOfficeDialog(val);return;}
  if(a==='banking-riding'){setBankingRiding(val);return;}
  if(a==='banking-done'){close();return;}
