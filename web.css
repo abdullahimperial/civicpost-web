@@ -16,3 +16,12 @@ main.opening-agreement {
 .opening-agreement nav { display: flex; flex-wrap: wrap; gap: .35rem 1.25rem; padding: .75rem 0; border-block: 1px solid var(--line); }
 .opening-agreement nav a { padding: .25rem 0; color: #126050; text-underline-offset: .2em; }
 .opening-agreement button { min-height: 44px; }
+
+.developer-gps { margin: 0 0 1rem; padding: 1rem 1.25rem; scroll-margin-top: 1rem; }
+.developer-gps h2, .developer-gps h3 { margin: 0; }
+.developer-gps .row { flex-wrap: wrap; }
+.developer-gps .field { max-width: 26rem; }
+.developer-gps dl { display: grid; grid-template-columns: minmax(6rem, 1fr) 2fr; gap: .35rem .75rem; }
+.developer-gps dt { font-weight: 600; }
+.developer-gps dd { margin: 0; }
+.developer-gps > small { display: block; margin-top: .75rem; }

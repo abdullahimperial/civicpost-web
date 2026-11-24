@@ -172,5 +172,5 @@ async function download(code,{signal,onProgress=()=>{}}={}){
   await pool([...files.values()],async file=>{checkAbort(signal);await bytesFor(file,{saveRequired:true});checkAbort(signal);done++;bytes+=file.bytes;onProgress({done,count:files.size,bytes,total});});
   return {files:done,bytes};
 }
-root.CivicWeb={manifest,cacheName,base,read,province:region,ensureLocation,locationKey,loadDirectory,completeDirectories,lookup,script,download};
+root.CivicWeb={gpsIndexBytes:()=>bytesFor(manifest.gpsIndex),manifest,cacheName,base,read,province:region,ensureLocation,locationKey,loadDirectory,completeDirectories,lookup,script,download};
 })(globalThis);

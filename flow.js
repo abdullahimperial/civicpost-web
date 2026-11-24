@@ -221,7 +221,7 @@ $('#dialog').addEventListener('close', () => {
  if (!$('#dialog').open) $('#dialog-content .help-player')?.remove();
 });
 
-function flowMenu(){modal(`<h2>CivicPost</h2><div class="choice-stack">${tile('Review current choices','Location, issue and recipients','summary','check')}${tile('Campaigns','Alberta email campaigns','campaigns','mail')}${tile('Import QR / draft','Preview before loading','import','mail')}${tile('Saved drafts',saved.length+' on this device','saved','message')}${tile('Contact directory',R.stats.uniqueEmails.toLocaleString()+' distinct emails','directory','building')}${tile('Help','Watch CivicPost video guides','help','book')}${tile('Coverage & sources','Data, source dates and limitations','coverage','globe')}${tile('Privacy, terms & safety','Policies, data controls and advertising','about','lock')}</div><p class="small">Version 1.10.0 · Independent. Nonpartisan.</p>`);}
+function flowMenu(){modal(`<h2>CivicPost</h2><div class="choice-stack">${tile('Review current choices','Location, issue and recipients','summary','check')}${tile('Campaigns','Alberta email campaigns','campaigns','mail')}${tile('Import QR / draft','Preview before loading','import','mail')}${tile('Saved drafts',saved.length+' on this device','saved','message')}${tile('Contact directory',R.stats.uniqueEmails.toLocaleString()+' distinct emails','directory','building')}${window.CivicDeveloper?tile('Developer options','Full CivicPost with GPS testing','developer-options','pin'):'<a class="choice-tile" href="https://civicpost.ca/?developer=1">'+icon('pin')+'<span><b>Developer options</b><small>Open the full GPS test page in your browser</small></span><span aria-hidden="true">›</span></a>'}${tile('Help','Watch CivicPost video guides','help','book')}${tile('Coverage & sources','Data, source dates and limitations','coverage','globe')}${tile('Privacy, terms & safety','Policies, data controls and advertising','about','lock')}</div><p class="small">Version 1.10.0 · Independent. Nonpartisan.</p>`);}
 document.addEventListener('click',e=>{
  const t=e.target.closest('button,a');if(!t)return;
  if(t.dataset.issue){flow.history.push({view:'issues',stage:1,page:flow.page,group:flow.group});flow.page=0;flow.view=t.dataset.issue==='waste'?'service':'levels';}
@@ -232,6 +232,11 @@ document.addEventListener('click',e=>{
  const close=()=>{if($('#dialog').open)$('#dialog').close();};
  if(a==='campaigns'){showCampaignList();return;}
  if(a==='campaign-detail'){showCampaign(val);return;}
+ if(a==='developer-options'){
+  close();
+  window.CivicDeveloper.open();
+  return;
+ }
  if(a==='help'){showVideoHelp();return;}
  if(a==='play-help-video'){playHelpVideo(t);return;}
  if(a==='banking-office'){bankingOfficeDialog(val);return;}
@@ -259,7 +264,7 @@ document.addEventListener('click',e=>{
  if(a==='pick-board'){state.schoolBoard=val;state.liveChosen=state.liveChosen.filter(id=>!state.liveReps.some(r=>r.id===id&&r.level==='school'));invalidate();flowBoardDone();return;}
  if(a==='board-done'){flowBoardDone();return;}
  if(a==='board-clear'){state.schoolBoard='';state.liveChosen=state.liveChosen.filter(id=>!state.liveReps.some(r=>r.id===id&&r.level==='school'));invalidate();flowBoardDone();return;}
- if(a==='location-privacy'){modal('<h2>Your location stays under your control.</h2><p>No street address is needed. Location is stored only when you choose Remember location, save a postal lookup or save a draft. Your unsaved message stays in this session.</p><p>Postal lookup sends only the postal code to Open North after reading the downloaded database. City suggestion sends your IP address to BigDataCloud. GPS is not used. School eligibility and Indigenous affiliation require your own choice.</p>');return;}
+ if(a==='location-privacy'){modal('<h2>Your location stays under your control.</h2><p>No street address is needed. Location is stored only when you choose Remember location, save a postal lookup or save a draft. Your unsaved message stays in this session.</p><p>Postal lookup sends only the postal code to Open North after reading the downloaded database. City suggestion sends your IP address to BigDataCloud. Optional GPS testing is available under Menu → Developer options. School eligibility and Indigenous affiliation require your own choice.</p>');return;}
  if(a==='next-stage'){go(Math.min(3,step+1));return;}
  if(a==='pick-service'||a==='service-skip'){state.serviceDetail=a==='pick-service'?val:'';invalidate();flowMove('levels');return;}
  if(a==='toggle-level'){state.levels=state.levels.includes(val)?state.levels.filter(l=>l!==val):[...state.levels,val];invalidate();render();return;}

@@ -1,9 +1,9 @@
 'use strict';
-const RELEASE='64dae9b3c3bec4a07f15';
+const RELEASE='a1c193a3ad0321a63bee';
 const BASE=new URL('./',self.location.href);
 const PREFIX='civicpost-web:'+BASE.pathname+':';
 const CACHE=PREFIX+RELEASE;
-const SHELL=["agreement.js", "analytics.js", "api-client.js", "api-ui.js", "app.js", "campaigns.js", "data.js", "engine.js", "flow.css", "flow.js", "icon-192.png", "icon-512.png", "icon.svg", "index.html", "legal-content.js", "legal-ui.js", "legal.css", "location.js", "manifest.webmanifest", "offline-postal.js", "postal-lookup.js", "privacy.html", "safety.html", "sharing-ui.js", "sharing.js", "sources.html", "style.css", "terms.html", "web-data.js", "web-manifest.js", "web.css"];
+const SHELL=["agreement.js", "analytics.js", "api-client.js", "api-ui.js", "app.js", "campaigns.js", "data.js", "developer-gps.js", "engine.js", "flow.css", "flow.js", "icon-192.png", "icon-512.png", "icon.svg", "index.html", "legal-content.js", "legal-ui.js", "legal.css", "location.js", "manifest.webmanifest", "offline-postal.js", "postal-lookup.js", "privacy.html", "safety.html", "sharing-ui.js", "sharing.js", "sources.html", "style.css", "terms.html", "web-data.js", "web-manifest.js", "web.css"];
 const EXTRA=['vendor/qrcode.js','vendor/jsQR.js','offline-postal/sources.html'];
 self.addEventListener('install',event=>{
   // Never precache national data. Updates wait for old tabs to close, keeping
@@ -16,7 +16,9 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
 })()));
 self.addEventListener('fetch',event=>{
   const url=new URL(event.request.url);
-  if(event.request.method!=='GET'||url.origin!==BASE.origin||!url.pathname.startsWith(BASE.pathname)||url.search)return;
+  const developerPage=event.request.mode==='navigate'&&url.search==='?developer=1'&&
+    (url.pathname===BASE.pathname||url.pathname===BASE.pathname+'index.html');
+  if(event.request.method!=='GET'||url.origin!==BASE.origin||!url.pathname.startsWith(BASE.pathname)||(url.search&&!developerPage))return;
   const relative=url.pathname.slice(BASE.pathname.length)||'index.html';
   if(!SHELL.includes(relative)&&!EXTRA.includes(relative)&&!relative.startsWith('data/'+RELEASE+'/'))return;
   const key=new URL(relative,BASE).href;
