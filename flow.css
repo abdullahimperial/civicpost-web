@@ -37,3 +37,5 @@ html:has(.tap-flow){height:100%;overflow:hidden}
 .help-video-controls button[hidden] {display: none}
 .help-player {display: block; width: 100%; min-height: 200px; aspect-ratio: 16 / 9; margin: 0 auto .75rem; border: 0; background: #111}
 .help-player.portrait {width: min(100%, max(200px, 34vh)); aspect-ratio: 9 / 16}
+
+.campaign-message { white-space: pre-line; line-height: 1.5; }

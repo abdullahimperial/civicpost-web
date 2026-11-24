@@ -66,6 +66,10 @@ web.moreContacts=async s=>{
   const value=await request('/v1/lookup',{...location(s),offset:previous.nextOffset});
   ingest(value.results);results.set(k,{...value,results:[...previous.results,...value.results],time:Date.now()});
 };
+web.campaignOffice=async id=>{
+  const value=await request('/v1/campaign',{campaign:id});
+  return value.results[0];
+};
 web.searchContacts=async(filters,options)=>{
   const body={province:filters.province,query:filters.query||'',jurisdiction:filters.jurisdiction||'',level:filters.level||'',genericOnly:!!filters.genericOnly,offset:filters.offset||0};
   if(filters.levels)body.levels=filters.levels;

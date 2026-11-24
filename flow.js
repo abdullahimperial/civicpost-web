@@ -221,7 +221,7 @@ $('#dialog').addEventListener('close', () => {
  if (!$('#dialog').open) $('#dialog-content .help-player')?.remove();
 });
 
-function flowMenu(){modal(`<h2>CivicPost</h2><div class="choice-stack">${tile('Review current choices','Location, issue and recipients','summary','check')}${tile('Import QR / draft','Preview before loading','import','mail')}${tile('Saved drafts',saved.length+' on this device','saved','message')}${tile('Contact directory',R.stats.uniqueEmails.toLocaleString()+' distinct emails','directory','building')}${tile('Help','Watch CivicPost video guides','help','book')}${tile('Coverage & sources','Data, source dates and limitations','coverage','globe')}${tile('Privacy, terms & safety','Policies, data controls and advertising','about','lock')}</div><p class="small">Version 1.10.0 · Independent. Nonpartisan.</p>`);}
+function flowMenu(){modal(`<h2>CivicPost</h2><div class="choice-stack">${tile('Review current choices','Location, issue and recipients','summary','check')}${tile('Campaigns','Alberta email campaigns','campaigns','mail')}${tile('Import QR / draft','Preview before loading','import','mail')}${tile('Saved drafts',saved.length+' on this device','saved','message')}${tile('Contact directory',R.stats.uniqueEmails.toLocaleString()+' distinct emails','directory','building')}${tile('Help','Watch CivicPost video guides','help','book')}${tile('Coverage & sources','Data, source dates and limitations','coverage','globe')}${tile('Privacy, terms & safety','Policies, data controls and advertising','about','lock')}</div><p class="small">Version 1.10.0 · Independent. Nonpartisan.</p>`);}
 document.addEventListener('click',e=>{
  const t=e.target.closest('button,a');if(!t)return;
  if(t.dataset.issue){flow.history.push({view:'issues',stage:1,page:flow.page,group:flow.group});flow.page=0;flow.view=t.dataset.issue==='waste'?'service':'levels';}
@@ -230,6 +230,8 @@ document.addEventListener('click',e=>{
  if(lookupPending&&lookupResult)lookupInteracted=true;
  e.preventDefault();e.stopImmediatePropagation();const a=t.dataset.flow,val=t.dataset.value;
  const close=()=>{if($('#dialog').open)$('#dialog').close();};
+ if(a==='campaigns'){showCampaignList();return;}
+ if(a==='campaign-detail'){showCampaign(val);return;}
  if(a==='help'){showVideoHelp();return;}
  if(a==='play-help-video'){playHelpVideo(t);return;}
  if(a==='banking-office'){bankingOfficeDialog(val);return;}
