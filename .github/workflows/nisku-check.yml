@@ -1,0 +1,34 @@
+name: Verify Nisku GPS recovery
+on:
+  push:
+    branches: [qa/nisku-gps-e25df9dc]
+permissions:
+  contents: read
+jobs:
+  phone:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - run: npm install --no-save --package-lock=false playwright-core@1.62.1
+      - name: Reproduce the reported failure
+        run: |
+          python3 -m http.server 8031 --bind 127.0.0.1 >/tmp/civicpost-qa.log 2>&1 &
+          curl --retry 5 --retry-connrefused -fsS http://127.0.0.1:8031/release.json >/dev/null
+          node qa/check.cjs http://127.0.0.1:8031/ before
+      - name: Check the verified GPS package in a mobile browser
+        run: |
+          python3 qa/assemble.py
+          node qa/check.cjs http://127.0.0.1:8031/
+      - name: Store verified public postal geography
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          file=data/e25df9dc3c8ab20788ae/gps-postal.bin
+          sha=$(git hash-object "$file")
+          test "$sha" = 7a6f979e25b5304509a075068b366a13e1851f69
+          base64 -w0 "$file" | jq -Rs '{encoding:"base64",content:.}' | gh api --method POST "repos/$GITHUB_REPOSITORY/git/blobs" --input - --jq .sha | grep -Fx "$sha"
