@@ -19,5 +19,18 @@ jobs:
           python3 -m http.server 8031 --bind 127.0.0.1 >/tmp/civicpost-test-http.log 2>&1 &
           curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8031/release.json >/dev/null
           node qa/gps-touch.cjs http://127.0.0.1:8031/
+      - name: Test a returning phone upgrading from the previous cached release
+        env:
+          GPS_UPGRADE_DIR: ${{ runner.temp }}/gps-upgrade
+        run: |
+          mkdir -p "$GPS_UPGRADE_DIR/previous"
+          git fetch --depth=1 origin 3d99a5d14121f7ef42a4c236a7951a68bab5a940
+          git archive 3d99a5d14121f7ef42a4c236a7951a68bab5a940 | tar -x -C "$GPS_UPGRADE_DIR/previous"
+          cp -a "$GPS_UPGRADE_DIR/previous/data/." data/
+          cp -a "$GPS_UPGRADE_DIR/previous/assets/." assets/
+          ln -s "$GPS_UPGRADE_DIR/previous" "$GPS_UPGRADE_DIR/site"
+          python3 -m http.server 8032 --bind 127.0.0.1 --directory "$GPS_UPGRADE_DIR/site" >/tmp/civicpost-upgrade-http.log 2>&1 &
+          curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8032/release.json >/dev/null
+          node qa/gps-touch.cjs http://127.0.0.1:8032/
       - name: Verify device GPS through addressed draft on the published release
         run: node qa/gps-touch.cjs https://civicpost.ca/

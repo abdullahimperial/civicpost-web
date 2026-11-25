@@ -4,7 +4,8 @@ const release = require('../release.json');
 const site = new URL(process.argv[2]);
 (async () => {
   const live = site.protocol === 'https:';
-  for (let i = 0; ; i++) {
+  const oldSite = process.env.GPS_UPGRADE_DIR;
+  for (let i = 0; !oldSite; i++) {
     const url = new URL('release.json', site);
     url.searchParams.set('check', Date.now());
     const served = await fetch(url, {signal:AbortSignal.timeout(10000)}).then(r => r.json()).catch(() => null);
@@ -15,10 +16,25 @@ const site = new URL(process.argv[2]);
   const browser = await chromium.launch({channel:'chrome', headless:true});
   try {
     const context = await browser.newContext({
-      viewport:{width:360,height:680}, isMobile:true, hasTouch:true, serviceWorkers:'block',
+      viewport:{width:360,height:680}, isMobile:true, hasTouch:true, serviceWorkers:oldSite?'allow':'block',
       geolocation:{latitude:53.46, longitude:-113.398, accuracy:18}, permissions:['geolocation']
     });
     const page = await context.newPage();
+    if (oldSite) {
+      const fs = require('node:fs'), path = require('node:path');
+      await page.goto(site.href);
+      await page.getByRole('button',{name:'I agree and continue'}).tap();
+      await page.waitForFunction(()=>navigator.serviceWorker.controller && window.CivicWeb);
+      const oldRelease = JSON.parse(fs.readFileSync(path.join(oldSite,'previous/release.json'))).release;
+      assert.notEqual(oldRelease,release.release);
+      const cached = await page.evaluate(async()=>{
+        const cache = await caches.open(CivicWeb.cacheName);
+        return Boolean(await cache.match(new URL('flow.js',document.baseURI)));
+      });
+      assert.equal(cached,true,'Previous flow script must be in the phone cache');
+      fs.symlinkSync(process.cwd(),path.join(oldSite,'site-next'));
+      fs.renameSync(path.join(oldSite,'site-next'),path.join(oldSite,'site'));
+    }
     // Hold the external postal update until the user has confirmed the bundled community.
     let resume;
     const gate = new Promise(resolve => { resume=resolve; });
@@ -31,10 +47,13 @@ const site = new URL(process.argv[2]);
       if(r.url() === release.contactApiUrl+'/v1/lookup') apiStatuses.push(r.status());
     });
     await page.goto(new URL('?developer=1&refresh=confirm', site).href);
-    await page.getByRole('button', {name:'I agree and continue'}).tap();
+    if(!oldSite) await page.getByRole('button', {name:'I agree and continue'}).tap();
     await page.getByRole('button', {name:'Use my current location'}).tap();
     const use = page.getByRole('button', {name:'Use this postal code in CivicPost'});
     await use.waitFor();
+    if (oldSite) {
+      assert.ok(await page.evaluate(rel=>[...document.scripts].some(s=>s.src.includes('assets/'+rel+'/developer-gps.js')),release.release));
+    }
     assert.match(await page.locator('#gps-status').innerText(),/Device fix.*18 m/);
     assert.equal(await page.locator('#gps-candidate').inputValue(),'T6L5X1');
     assert.match(await page.locator('#gps-districts').innerText(), /Sspomitapi/);
