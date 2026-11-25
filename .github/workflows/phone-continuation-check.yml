@@ -1,0 +1,23 @@
+name: Check mobile location continuation
+on:
+  push:
+    branches: [qa/gps-confirmation-7f7b5af3]
+permissions:
+  contents: read
+jobs:
+  phone:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Install mobile test driver
+        run: npm install --no-save --package-lock=false playwright-core@1.62.1
+      - name: Test generated release before promotion
+        run: |
+          python3 -m http.server 8031 --bind 127.0.0.1 >/tmp/civicpost-test-http.log 2>&1 &
+          curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8031/release.json >/dev/null
+          node qa/gps-touch.cjs http://127.0.0.1:8031/
+      - name: Verify device GPS through addressed draft on the published release
+        run: node qa/gps-touch.cjs https://civicpost.ca/
