@@ -91,9 +91,15 @@ function mergeResults(fallback,live){
  const city=!liveCity||E.norm(liveCity)===E.norm(localCity)?localCity:liveCity;
  return {...live,source:retained.length?'mixed':'api',apiResult:live,offline:fallback.offline,changedLevels:changes,retainedLevels:[...new Set(retained.map(E.levelFor))],data:{...live.data,province:live.data.province||fallback.data.province,city,representatives_centroid:[...current,...retained],representatives_concordance:[]},recordSources:[...current.map(()=>({origin:'Open North',checked:live.fetchedAt.slice(0,10)})),...retained.map(r=>({origin:'the downloaded database',checked:r.source_checked||R.checked,trustedOfficeTypes:true}))]};
 }
-async function resolve(value,{signal,onLocal=()=>{},localLookup=local.lookup,onlineLookup=P.lookup}={}){
+async function resolve(value,{signal,bundledPreview,onLocal=()=>{},localLookup=local.lookup,onlineLookup=P.lookup}={}){
  let fallback=null,localError=null;
- try{fallback=await localLookup(value,{signal});if(signal?.aborted)throw abort();if(fallback)onLocal(fallback);}catch(e){if(signal?.aborted||e.code==='cancelled')throw abort();localError=e;}
+ try{
+  // A GPS preview already read and verified this exact bundled record.
+  const matches=bundledPreview?.source==='bundled'&&bundledPreview.postal===P.normalize(value);
+  fallback=matches?bundledPreview:await localLookup(value,{signal});
+  if(signal?.aborted)throw abort();
+  if(fallback)onLocal(fallback);
+ }catch(e){if(signal?.aborted||e.code==='cancelled')throw abort();localError=e;}
  try{
   const result=await onlineLookup(value,{signal});if(signal?.aborted)throw abort();
   if(!E.parseLookup(result.data).reps.length){const e=new Error('The live service returned no usable representative records.');e.code='empty';throw e;}

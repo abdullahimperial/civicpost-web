@@ -4,7 +4,7 @@
 const classicUI={location:locationPanel,contacts:contactsPanel,sidebar:renderSidebar};
 const flow={view:'start',history:[],page:0,group:'main',district:0,search:'',returnView:'location-review',stateRef:state,previousEditor:editor,lookupStarted:false};
 const startLookupCore=startLookup;
-startLookup=function(){flow.lookupStarted=true;return startLookupCore();};
+startLookup=function(bundledPreview){flow.lookupStarted=true;return startLookupCore(bundledPreview);};
 const flowStages=['Your location','Your issue','The right offices','Your message'];
 const flowBtn=(label,action,cls='secondary',attrs='')=>`<button class="button ${cls}" data-flow="${action}" ${attrs}>${label}</button>`;
 const tile=(title,detail,action,symbol='message',attrs='')=>`<button class="choice-tile" data-flow="${action}" ${attrs}>${icon(symbol)}<span><b>${title}</b>${detail?`<small>${detail}</small>`:''}</span><span class="tile-arrow" aria-hidden="true">›</span></button>`;

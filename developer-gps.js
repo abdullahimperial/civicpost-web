@@ -40,7 +40,7 @@
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = {nearest}; return; }
   let panel, indexTask, positionRequest = 0, districtRequest = 0;
-  let selected = '';
+  let selectedResult = null;
   const enabled = () => new URL(location.href).searchParams.get('developer') === '1';
   const format = code => code.slice(0,3) + ' ' + code.slice(3);
   function updateUrl(on) {
@@ -53,10 +53,15 @@
   function showMode() {
     if (!enabled()) {
       ++positionRequest; ++districtRequest;
-      panel?.remove(); panel = null; selected = '';
+      panel?.remove(); panel = null; selectedResult = null;
       return;
     }
-    if (panel) { panel.scrollIntoView({block:'start'}); return; }
+    if (panel) {
+      if (!panel.isConnected) document.querySelector('#main').prepend(panel);
+      panel.scrollIntoView({block:'start'});
+      panel.querySelector('#gps-heading').focus({preventScroll:true});
+      return;
+    }
     panel = document.createElement('section');
     panel.className = 'panel developer-gps';
     panel.setAttribute('aria-labelledby','gps-heading');
@@ -77,22 +82,24 @@
       const action = event.target.closest('[data-gps]')?.dataset.gps;
       if (action === 'exit') { updateUrl(false); document.querySelector('[aria-label="Open CivicPost menu"]').focus(); }
       if (action === 'locate' || action === 'demo') run(action);
-      if (action === 'manual') {
+      if (action === 'manual' || (action === 'use' && selectedResult)) {
+        event.stopPropagation();
+        // Restore the normal phone layout. Menu → Developer options can reopen this picker.
+        panel.remove();
         flowMove('postal', {stage:0});
-        document.getElementById('postal').focus();
-      }
-      if (action === 'use' && selected) {
-        const code = selected;
-        flowMove('postal', {stage:0});
-        state.postal = code;
-        startLookup();
-        document.querySelector('#panel').scrollIntoView({block:'start'});
+        if (action === 'use') {
+          state.postal = selectedResult.postal;
+          startLookup(selectedResult);
+        } else {
+          document.getElementById('postal').focus();
+        }
+        document.querySelector('#main').scrollTop = 0;
       }
     });
     panel.querySelector('#gps-heading').focus({preventScroll:true});
   }
   function clearResult() {
-    ++districtRequest; selected = '';
+    ++districtRequest; selectedResult = null;
     panel.querySelector('#gps-points').replaceChildren();
     panel.querySelector('#gps-districts').replaceChildren();
   }
@@ -100,7 +107,7 @@
     if (!indexTask) indexTask = (async () => {
       // A returning tab may still have the pre-GPS web loader and manifest.
       // The build pins this script to its own verified, same-origin index.
-      const index = {"path": "data/edf074c3a4fae29af4a1/gps-postal.bin", "bytes": 4857286, "integrity": "sha256-AJoZ5+XpvmswbObNaSfv6ghEA9zMfMeFaDxCWLNKqN8="};
+      const index = {"path": "data/7f7b5af33a67827c30b5/gps-postal.bin", "bytes": 4857286, "integrity": "sha256-AJoZ5+XpvmswbObNaSfv6ghEA9zMfMeFaDxCWLNKqN8="};
       const response = await fetch(new URL(index.path, document.baseURI), {
         integrity:index.integrity, credentials:'omit', referrerPolicy:'no-referrer',
         signal:AbortSignal.timeout(20000)
@@ -167,7 +174,7 @@
   }
   async function preview(code) {
     const request = ++districtRequest;
-    selected = '';
+    selectedResult = null;
     const output = panel.querySelector('#gps-districts');
     output.textContent = 'Finding districts for ' + format(code) + '…';
     try {
@@ -185,7 +192,7 @@
         lines.map(([k,v]) => '<dt>'+esc(k)+'</dt><dd>'+esc(v)+'</dd>').join('') +
         '</dl><button type="button" class="button" data-gps="use">Use this postal code in CivicPost</button>' +
         '<p class="small">Postal codes may cross boundaries. Choose your school board separately. Continuing checks the selected postal code with Open North and lets you confirm the districts.</p>';
-      selected = code;
+      selectedResult = hit;
     } catch (error) {
       if (request === districtRequest) output.textContent = 'District preview unavailable. ' + error.message + ' Try again or use the normal postal lookup.';
     }

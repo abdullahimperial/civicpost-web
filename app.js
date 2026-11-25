@@ -121,14 +121,14 @@ function applyLookupResult(result,offline=false){
  state.city=lookup.city||'';state.locationConfirmed=false;locationStatus=lookup.city?'City suggested by the postal lookup. Confirm it before continuing.':'Enter your community; this lookup did not resolve one city.';
  lookupError='';
 }
-async function startLookup(){
+async function startLookup(bundledPreview){
  cancelLocationSuggestion();
  if(!CivicPostal.valid(state.postal)){lookupError='Enter a complete Canadian postal code, such as T5K 1E7.';render();return;}
  clearLookup();state.postal=CivicPostal.normalize(state.postal);state.municipality='';state.ward='';state.provRiding='';state.fedRiding='';state.schoolBoard='';invalidate();
  lookupPending=true;const token=Symbol('postal-lookup');lookupToken=token;const postal=state.postal;lookupAbort=new AbortController();lookupStatus='Reading downloaded database…';render();
  const current=()=>token===lookupToken&&postal===CivicPostal.normalize(state.postal);
  try{
-  const response=await CivicOffline.resolve(postal,{signal:lookupAbort.signal,onLocal:result=>{if(!current())return;applyLookupResult(result,true);lookupStatus='Database result ready. Checking the live API for updates…';render();}});
+  const response=await CivicOffline.resolve(postal,{signal:lookupAbort.signal,bundledPreview,onLocal:result=>{if(!current())return;applyLookupResult(result,true);lookupStatus='Database result ready. Checking the live API for updates…';render();}});
   if(!current())return;
   if(response.result.source==='bundled'){
    lookupStatus='Postal code matched in the CivicPost database. Live representative updates are unavailable.';
