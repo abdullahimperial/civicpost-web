@@ -19,5 +19,5 @@ jobs:
           python3 -m http.server 8031 --bind 127.0.0.1 >/tmp/civicpost-test-http.log 2>&1 &
           curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8031/release.json >/dev/null
           node qa/gps-touch.cjs http://127.0.0.1:8031/
-      - name: Test device GPS through addressed draft using live services and a browser-local stylesheet preview
-        run: node qa/gps-touch.cjs https://civicpost.ca/ --preview-css
+      - name: Verify device GPS through addressed draft on the published release
+        run: node qa/gps-touch.cjs https://civicpost.ca/
