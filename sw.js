@@ -1,9 +1,9 @@
 'use strict';
-const RELEASE='a1c193a3ad0321a63bee';
+const RELEASE='edf074c3a4fae29af4a1';
 const BASE=new URL('./',self.location.href);
 const PREFIX='civicpost-web:'+BASE.pathname+':';
 const CACHE=PREFIX+RELEASE;
-const SHELL=["agreement.js", "analytics.js", "api-client.js", "api-ui.js", "app.js", "campaigns.js", "data.js", "developer-gps.js", "engine.js", "flow.css", "flow.js", "icon-192.png", "icon-512.png", "icon.svg", "index.html", "legal-content.js", "legal-ui.js", "legal.css", "location.js", "manifest.webmanifest", "offline-postal.js", "postal-lookup.js", "privacy.html", "safety.html", "sharing-ui.js", "sharing.js", "sources.html", "style.css", "terms.html", "web-data.js", "web-manifest.js", "web.css"];
+const SHELL=["agreement.js", "analytics.js", "api-client.js", "api-ui.js", "app.js", "assets/edf074c3a4fae29af4a1/developer-gps.js", "campaigns.js", "data.js", "engine.js", "flow.css", "flow.js", "icon-192.png", "icon-512.png", "icon.svg", "index.html", "legal-content.js", "legal-ui.js", "legal.css", "location.js", "manifest.webmanifest", "offline-postal.js", "postal-lookup.js", "privacy.html", "safety.html", "sharing-ui.js", "sharing.js", "sources.html", "style.css", "terms.html", "web-data.js", "web-manifest.js", "web.css"];
 const EXTRA=['vendor/qrcode.js','vendor/jsQR.js','offline-postal/sources.html'];
 self.addEventListener('install',event=>{
   // Never precache national data. Updates wait for old tabs to close, keeping

@@ -18,6 +18,10 @@ main.opening-agreement {
 .opening-agreement button { min-height: 44px; }
 
 .developer-gps { margin: 0 0 1rem; padding: 1rem 1.25rem; scroll-margin-top: 1rem; }
+/* The tester and the ordinary drafting workflow share one scrollable page. */
+.tap-flow main:has(> .developer-gps) { overflow-y: auto; }
+.tap-flow .panel.developer-gps { flex: none; display: block; overflow: visible; padding-bottom: 1rem; }
+.tap-flow main:has(> .developer-gps) > .workspace { flex: 1 0 auto; }
 .developer-gps h2, .developer-gps h3 { margin: 0; }
 .developer-gps .row { flex-wrap: wrap; }
 .developer-gps .field { max-width: 26rem; }

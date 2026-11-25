@@ -35,12 +35,12 @@
         candidates.push({code, distance});
       }
     }
-    return candidates.sort((a,b) => a.distance - b.distance || a.code.localeCompare(b.code)).slice(0,5);
+    return candidates.sort((a,b) => a.distance - b.distance || a.code.localeCompare(b.code));
   }
 
   if (typeof module !== 'undefined' && module.exports) { module.exports = {nearest}; return; }
   let panel, indexTask, positionRequest = 0, districtRequest = 0;
-  let candidates = [], selected = '';
+  let selected = '';
   const enabled = () => new URL(location.href).searchParams.get('developer') === '1';
   const format = code => code.slice(0,3) + ' ' + code.slice(3);
   function updateUrl(on) {
@@ -53,7 +53,7 @@
   function showMode() {
     if (!enabled()) {
       ++positionRequest; ++districtRequest;
-      panel?.remove(); panel = null; selected = ''; candidates = [];
+      panel?.remove(); panel = null; selected = '';
       return;
     }
     if (panel) { panel.scrollIntoView({block:'start'}); return; }
@@ -69,6 +69,7 @@
       <button type="button" class="button secondary" data-gps="demo">Try Bisset, Edmonton</button></div>
       <p id="gps-status" role="status" aria-live="polite"></p>
       <div id="gps-points"></div><div id="gps-districts" aria-live="polite"></div>
+      <p><button type="button" class="text-button" data-gps="manual">Enter my postal code</button></p>
       <small>Postal points © <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> ·
       <a href="offline-postal/sources.html" target="_blank" rel="noopener noreferrer">Source and licence</a></small>`;
     document.querySelector('#main').prepend(panel);
@@ -76,6 +77,10 @@
       const action = event.target.closest('[data-gps]')?.dataset.gps;
       if (action === 'exit') { updateUrl(false); document.querySelector('[aria-label="Open CivicPost menu"]').focus(); }
       if (action === 'locate' || action === 'demo') run(action);
+      if (action === 'manual') {
+        flowMove('postal', {stage:0});
+        document.getElementById('postal').focus();
+      }
       if (action === 'use' && selected) {
         const code = selected;
         flowMove('postal', {stage:0});
@@ -87,16 +92,28 @@
     panel.querySelector('#gps-heading').focus({preventScroll:true});
   }
   function clearResult() {
-    ++districtRequest; candidates = []; selected = '';
+    ++districtRequest; selected = '';
     panel.querySelector('#gps-points').replaceChildren();
     panel.querySelector('#gps-districts').replaceChildren();
   }
   async function loadIndex() {
     if (!indexTask) indexTask = (async () => {
-      const bytes = await CivicWeb.gpsIndexBytes();
+      // A returning tab may still have the pre-GPS web loader and manifest.
+      // The build pins this script to its own verified, same-origin index.
+      const index = {"path": "data/edf074c3a4fae29af4a1/gps-postal.bin", "bytes": 4857286, "integrity": "sha256-AJoZ5+XpvmswbObNaSfv6ghEA9zMfMeFaDxCWLNKqN8="};
+      const response = await fetch(new URL(index.path, document.baseURI), {
+        integrity:index.integrity, credentials:'omit', referrerPolicy:'no-referrer',
+        signal:AbortSignal.timeout(20000)
+      });
+      if (!response.ok) throw Error('Could not download the Canadian postal index.');
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength !== index.bytes) throw Error('The postal index download was incomplete.');
       const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
       return new Response(stream).arrayBuffer();
-    })().catch(error => { indexTask = null; throw error; });
+    })().catch(() => {
+      indexTask = null;
+      throw Error('The Canadian postal index could not be loaded and verified. Reconnect and try again, or enter your postal code.');
+    });
     return indexTask;
   }
   function deviceFix() {
@@ -124,7 +141,7 @@
       status.textContent = details + '. Reading the postal-point index…';
       const buffer = await loadIndex();
       if (request !== positionRequest) return;
-      candidates = nearest(buffer,fix.latitude,fix.longitude);
+      const candidates = nearest(buffer,fix.latitude,fix.longitude);
       status.textContent = details + ' · ' + fix.latitude.toFixed(5) + ', ' + fix.longitude.toFixed(5) + '. ' +
         (candidates.length ? 'Compare the nearby postal points and confirm your own code.' : 'No Canadian postal point within 5 km. Enter your postal code below.');
       if (!candidates.length) return;
@@ -132,10 +149,18 @@
       label.className = 'field'; label.textContent = 'Nearby postal codes';
       const select = document.createElement('select');
       select.id = 'gps-candidate';
-      for (const c of candidates) select.add(new Option(format(c.code) + ' · ' + Math.round(c.distance) + ' m', c.code));
+      const visible = candidates.slice(0, 5);
+      const tied = candidates.filter(c => c.distance === candidates[0].distance).length;
+      if (tied > 1) {
+        status.textContent += ' ' + tied + ' postal codes tie for closest. Choose a code to preview its districts, or enter your own.';
+        const prompt = new Option('Choose a postal code', '', true, true);
+        prompt.disabled = true;
+        select.add(prompt);
+      }
+      for (const c of visible) select.add(new Option(format(c.code) + ' · ' + Math.round(c.distance) + ' m', c.code));
       label.append(select); panel.querySelector('#gps-points').append(label);
       select.onchange = () => preview(select.value);
-      await preview(select.value);
+      if (tied === 1) await preview(select.value);
     } catch (error) {
       if (request === positionRequest) status.textContent = error.message + ' You can still use the regular CivicPost tools.';
     }
@@ -158,8 +183,8 @@
       }
       output.innerHTML = '<h3>District preview · ' + format(code) + '</h3><dl>' +
         lines.map(([k,v]) => '<dt>'+esc(k)+'</dt><dd>'+esc(v)+'</dd>').join('') +
-        '</dl><p class="small">Postal codes may cross boundaries. Choose your school board separately. Continuing checks the selected postal code with Open North and lets you confirm the districts.</p>' +
-        '<button type="button" class="button" data-gps="use">Use this postal code in CivicPost</button>';
+        '</dl><button type="button" class="button" data-gps="use">Use this postal code in CivicPost</button>' +
+        '<p class="small">Postal codes may cross boundaries. Choose your school board separately. Continuing checks the selected postal code with Open North and lets you confirm the districts.</p>';
       selected = code;
     } catch (error) {
       if (request === districtRequest) output.textContent = 'District preview unavailable. ' + error.message + ' Try again or use the normal postal lookup.';

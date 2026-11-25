@@ -13,6 +13,11 @@ for revision in $(git rev-list --first-parent --skip=1 --max-count=7 HEAD); do
   root="data/$version"
   [[ -d "$root" ]] && continue
   git restore --source="$revision" --worktree -- ":(glob)$root/postal/*.json" ":(glob)$root/regions/*.json"
+  for file in "$root/gps-postal.bin" "assets/$version/developer-gps.js"; do
+    if git cat-file -e "$revision:$file" 2>/dev/null; then
+      git restore --source="$revision" --worktree -- "$file"
+    fi
+  done
   retained=$((retained + 1))
   [[ $retained -lt 2 ]] || break
 done
