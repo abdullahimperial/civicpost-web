@@ -45,17 +45,35 @@ async function showCampaign(id) {
   if (!campaign) return showCampaignList('This campaign link is unavailable. Choose an Alberta campaign below.');
 
   const url = 'https://civicpost.ca/#campaign=' + id;
+  const postURL = 'https://civicpost.ca/?campaign=' + id;
+  const invitation = campaign.summary + ' Open the campaign to review and personalize an email to the Alberta government.';
+  const post = invitation + '\n' + postURL;
   modal(`<h2>${esc(campaign.title)}</h2>
     <div id="campaign-compose" aria-live="polite">Loading the recipient…</div>
     <p><strong>Subject</strong><br>${esc(campaign.subject)}</p>
     <div class="campaign-message">${esc(campaign.body)}</div>
     <p><a href="${url}">Campaign page</a> · <button class="text-button" data-copy-campaign>Copy page link</button></p>
+    <h3>Share this campaign</h3>
+    <p>${esc(invitation)}<br><a href="${postURL}">${postURL}</a></p>
+    <div class="row">
+      ${navigator.share ? '<button class="button secondary small" data-share-post>Share campaign post</button>' : ''}
+      <button class="button secondary small" data-copy-post>Copy campaign post</button>
+    </div>
     <div id="campaign-qr"></div>
     ${flowBtn('All Alberta campaigns', 'campaigns', 'secondary small')}`);
   const compose = $('#campaign-compose');
   const qr = $('#campaign-qr');
   const active = () => compose.isConnected && $('#dialog').open;
   $('[data-copy-campaign]').onclick = () => copyText(url);
+  $('[data-copy-post]').onclick = () => copyText(post);
+  const sharePost = $('[data-share-post]');
+  if (sharePost) sharePost.onclick = async () => {
+    try {
+      await navigator.share({text: invitation, url: postURL});
+    } catch (error) {
+      if (error.name !== 'AbortError') toast('Sharing is unavailable. Choose Copy campaign post and paste it into your social app.');
+    }
+  };
 
   try {
     const office = await campaignOffice(id);
@@ -71,7 +89,7 @@ async function showCampaign(id) {
     qr.innerHTML = '<h3>Email QR code</h3><p class="small">Scan to open the same addressed draft in your email app.</p><div id="draft-qr-stage" class="qr-stage"></div><p id="qr-size-note" class="small muted" role="status">Preparing QR code…</p>';
     if (!window.MoneySnapshotAndroid) qr.insertAdjacentHTML('beforeend', button('Download QR image', 'qr-image', 'secondary small'));
     await loadQRTools();
-    if (active()) renderShareQR(mail, campaign.title + ' email QR code', 'CivicPost_' + id + '.png');
+    if (active()) renderShareQR(mail, campaign.title + ' email QR code', 'CivicPost_' + id + '.png', postURL);
   } catch (error) {
     if (!active()) return;
     if (compose.querySelector('a[href^="mailto:"]')) {
@@ -84,7 +102,12 @@ async function showCampaign(id) {
 }
 
 function openCampaignFragment() {
-  if (location.hash.startsWith('#campaign=')) showCampaign(location.hash.slice('#campaign='.length));
+  if (location.hash.startsWith('#campaign=')) {
+    showCampaign(location.hash.slice('#campaign='.length));
+  } else if (!location.hash) {
+    const id = new URLSearchParams(location.search).get('campaign');
+    if (id) showCampaign(id);
+  }
 }
 window.addEventListener('hashchange', openCampaignFragment);
 openCampaignFragment();

@@ -107,7 +107,7 @@
     if (!indexTask) indexTask = (async () => {
       // A returning tab may still have the pre-GPS web loader and manifest.
       // The build pins this script to its own verified, same-origin index.
-      const index = {"path": "data/7f7b5af33a67827c30b5/gps-postal.bin", "bytes": 4857286, "integrity": "sha256-AJoZ5+XpvmswbObNaSfv6ghEA9zMfMeFaDxCWLNKqN8="};
+      const index = {"path": "data/d6f880048ac470c635d5/gps-postal.bin", "bytes": 4857286, "integrity": "sha256-AJoZ5+XpvmswbObNaSfv6ghEA9zMfMeFaDxCWLNKqN8="};
       const response = await fetch(new URL(index.path, document.baseURI), {
         integrity:index.integrity, credentials:'omit', referrerPolicy:'no-referrer',
         signal:AbortSignal.timeout(20000)

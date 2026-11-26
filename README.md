@@ -6,7 +6,7 @@ Development, source data, tests and release instructions belong in the private
 [civicpost repository](https://github.com/abdullahimperial/civicpost).
 Make changes there; do not hand-edit this generated website.
 
-Release: `7f7b5af33a67827c30b5`. Source commit: `d60fc94953215a94496e0ba3f29d21c34e6b7601`.
+Release: `d6f880048ac470c635d5`. Source commit: `661af0ddd2dcd4313f290c3d8dfd0f8fb246294b`.
 See [release.json](release.json) for data dates and initial download measurements.
 These are dated public records, not a guarantee that an officeholder is current.
 

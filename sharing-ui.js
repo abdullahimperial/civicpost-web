@@ -45,18 +45,46 @@ function qrCanvas(value,label){
  }
  throw Error('This QR could not be read at phone size. Shorten the message or share the full CivicPost draft file.');
 }
-function renderShareQR(value, label, filename){
+function renderShareQR(value, label, filename, browserURL){
  const stage=$('#draft-qr-stage');
+ const note=$('#qr-size-note');
  try{
   const canvas=qrCanvas(value,label);
   canvas.dataset.filename=filename;
   stage.append(canvas);
-  $('#qr-size-note').textContent=window.MoneySnapshotAndroid
-   ? 'Take a screenshot to share this code. Keep the white border.'
-   : 'Share the original QR image with its white border.';
+  const android=!!window.MoneySnapshotAndroid;
+  note.textContent=android?'You can also share a screenshot with the full white border.':'Keep the white border when posting the QR image.';
+  const offerBrowser=()=>{
+   if(!android || !browserURL)return;
+   const link=document.createElement('a');
+   link.className='button secondary small';
+   link.href=browserURL;
+   link.textContent='Share QR image in browser';
+   note.after(link);
+  };
+  // Prepare the PNG before the click so the share sheet retains user activation.
+  canvas.toBlob(blob=>{
+   if(!canvas.isConnected)return;
+   if(!blob || typeof File==='undefined' || !navigator.share || !navigator.canShare){
+    offerBrowser();return;
+   }
+   const file=new File([blob],filename,{type:'image/png'});
+   const data={files:[file]};
+   if(!navigator.canShare(data)){offerBrowser();return;}
+   const share=document.createElement('button');
+   share.type='button';share.className='button secondary small';share.textContent='Share QR image';
+   note.after(share);
+   share.onclick=async()=>{
+    try{await navigator.share(data);}
+    catch(error){
+     if(error.name==='AbortError')return;
+     note.textContent=android?'Image sharing is unavailable. Share a screenshot with the full white border.':'Image sharing is unavailable. Download the QR image and attach it to your post.';
+    }
+   };
+  },'image/png');
  }catch(error){
   stage.textContent=error.message || 'This draft is too large for one QR code.';
-  const download=document.querySelector('[data-action="qr-image"]');
+  const download=stage.closest('#dialog-content')?.querySelector('[data-action="qr-image"]');
   if(download)download.disabled=true;
  }
 }
