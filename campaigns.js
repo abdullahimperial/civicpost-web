@@ -21,6 +21,14 @@ const albertaCampaigns = [
     summary: 'Ask for a plan to reduce delays in Alberta hospitals.',
     subject: 'Reduce waits in Alberta emergency departments',
     body: 'Dear Minister,\n\nPlease publish a plan to shorten emergency room waits in Alberta. How will you reduce the time to first assessment and the time admitted patients wait for a hospital bed? Please share staffing and bed-capacity actions, timelines and progress by hospital.\n\nThank you.'
+  },
+  {
+    id: 'ab-grizzly-bears',
+    title: 'Protect Alberta’s grizzly bears',
+    summary: 'Ask Alberta to protect grizzly habitat and report on its recovery plan.',
+    background: {label: 'Read Alberta’s Grizzly Bear Recovery Plan', url: 'https://www.alberta.ca/grizzly-bear-recovery-plan'},
+    subject: 'Please follow Alberta’s Grizzly Bear Recovery Plan',
+    body: 'Dear Minister,\n\nPlease follow Alberta’s Grizzly Bear Recovery Plan and use the best available science when making decisions that affect grizzly bears. What steps is your ministry taking this year to protect grizzly habitat and help communities prevent conflicts with bears? Where can Albertans see the results?\n\nThank you,\n[Your name and community]'
   }
 ];
 
@@ -63,6 +71,7 @@ async function showCampaign(id) {
   const post = invitation + '\n' + postURL;
   modal(`<h2>${esc(campaign.title)}</h2>
     <p>${esc(campaign.summary)}</p>
+    ${campaign.background ? `<p><a href="${esc(campaign.background.url)}" target="_blank" rel="noopener noreferrer">${esc(campaign.background.label)}</a></p>` : ''}
     <nav aria-label="Share this campaign">
       <h3>Share this campaign</h3>
       <div class="row">${campaignSocialLinks(postURL, campaign.summary)}</div>
@@ -95,9 +104,12 @@ async function showCampaign(id) {
     const office = await campaignOffice(id);
     if (!active()) return;
     if (!office || !E.emailValid(office.email)) throw Error('The campaign recipient is unavailable.');
-    const mail = E.addressedMailto([office.email], [], campaign.subject, campaign.body.replace(/\n/g, '\r\n'));
-    compose.innerHTML = `<p><strong>To</strong> · ${esc(office.role)}<br>${esc(office.email)}
-      · <a href="${esc(E.safeURL(office.source))}" target="_blank" rel="noopener noreferrer">Source</a></p>
+    const copies = office.cc ?? [];
+    if (!Array.isArray(copies) || copies.some(copy => !E.emailValid(copy?.email))) throw Error('A campaign Cc recipient is unavailable.');
+    const mail = E.addressedMailto([office.email], copies.map(copy => copy.email), campaign.subject, campaign.body.replace(/\n/g, '\r\n'));
+    const recipient = (label, contact) => `<p><strong>${label}</strong> · ${esc(contact.role)}<br>${esc(contact.email)}
+      · <a href="${esc(E.safeURL(contact.source))}" target="_blank" rel="noopener noreferrer">Source</a></p>`;
+    compose.innerHTML = `${recipient('To', office)}${copies.map(copy => recipient('Cc', copy)).join('')}
       <a class="button" href="${esc(mail)}">Open email draft</a>
       <button class="button secondary small" data-copy-email>Copy email link</button>
       <p class="small">You can edit the draft in your email app before sending.</p>`;
