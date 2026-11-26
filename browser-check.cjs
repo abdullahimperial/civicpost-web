@@ -16,7 +16,7 @@ async function check(browser, home, id, mode) {
     page.on('pageerror', e => errors.push(e.message));
     if (!live) await page.route('**/v1/campaign', route => route.fulfill({
       headers:{'access-control-allow-origin':'*','access-control-allow-headers':'content-type'},
-      json:{results:[fakeOffice]}
+      json:{results:[fakeOffice], total:1, release:'qr-test'}
     }));
     await page.addInitScript(mode => {
       window.captured = [];
