@@ -40,31 +40,47 @@ async function campaignOffice(id) {
   return (await response.json())[id];
 }
 
+function campaignSocialLinks(url, text) {
+  const address = encodeURIComponent(url);
+  const platforms = [
+    ['Facebook', 'https://www.facebook.com/sharer/sharer.php?u=' + address],
+    ['X', 'https://twitter.com/intent/tweet?url=' + address + '&text=' + encodeURIComponent(text)],
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' + address],
+    ['WhatsApp', 'https://wa.me/?text=' + encodeURIComponent(text + '\n' + url)]
+  ];
+  const target = window.MoneySnapshotAndroid ? '_self' : '_blank';
+  return platforms.map(([name, href]) =>
+    `<a class="button secondary small" aria-label="Share on ${name}" href="${esc(href)}" target="${target}" rel="noopener noreferrer">${name}</a>`
+  ).join('');
+}
+
 async function showCampaign(id) {
   const campaign = albertaCampaigns.find(c => c.id === id);
   if (!campaign) return showCampaignList('This campaign link is unavailable. Choose an Alberta campaign below.');
 
-  const url = 'https://civicpost.ca/#campaign=' + id;
-  const postURL = 'https://civicpost.ca/?campaign=' + id;
+  const postURL = 'https://civicpost.ca/' + id + '.html';
   const invitation = campaign.summary + ' Open the campaign to review and personalize an email to the Alberta government.';
   const post = invitation + '\n' + postURL;
   modal(`<h2>${esc(campaign.title)}</h2>
-    <div id="campaign-compose" aria-live="polite">Loading the recipient…</div>
-    <p><strong>Subject</strong><br>${esc(campaign.subject)}</p>
-    <div class="campaign-message">${esc(campaign.body)}</div>
-    <p><a href="${url}">Campaign page</a> · <button class="text-button" data-copy-campaign>Copy page link</button></p>
-    <h3>Share this campaign</h3>
-    <p>${esc(invitation)}<br><a href="${postURL}">${postURL}</a></p>
+    <p>${esc(campaign.summary)}</p>
+    <nav aria-label="Share this campaign">
+      <h3>Share this campaign</h3>
+      <div class="row">${campaignSocialLinks(postURL, campaign.summary)}</div>
+    </nav>
+    <p><a href="${postURL}">Campaign page</a> · <button class="text-button" data-copy-campaign>Copy page link</button></p>
     <div class="row">
       ${navigator.share ? '<button class="button secondary small" data-share-post>Share campaign post</button>' : ''}
       <button class="button secondary small" data-copy-post>Copy campaign post</button>
     </div>
+    <div id="campaign-compose" aria-live="polite">Loading the recipient…</div>
+    <p><strong>Subject</strong><br>${esc(campaign.subject)}</p>
+    <div class="campaign-message">${esc(campaign.body)}</div>
     <div id="campaign-qr"></div>
     ${flowBtn('All Alberta campaigns', 'campaigns', 'secondary small')}`);
   const compose = $('#campaign-compose');
   const qr = $('#campaign-qr');
   const active = () => compose.isConnected && $('#dialog').open;
-  $('[data-copy-campaign]').onclick = () => copyText(url);
+  $('[data-copy-campaign]').onclick = () => copyText(postURL);
   $('[data-copy-post]').onclick = () => copyText(post);
   const sharePost = $('[data-share-post]');
   if (sharePost) sharePost.onclick = async () => {
@@ -105,9 +121,13 @@ function openCampaignFragment() {
   if (location.hash.startsWith('#campaign=')) {
     showCampaign(location.hash.slice('#campaign='.length));
   } else if (!location.hash) {
-    const id = new URLSearchParams(location.search).get('campaign');
+    const id = document.querySelector('meta[name="civicpost-campaign"]')?.content || new URLSearchParams(location.search).get('campaign');
     if (id) showCampaign(id);
   }
 }
-window.addEventListener('hashchange', openCampaignFragment);
-openCampaignFragment();
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = albertaCampaigns;
+} else {
+  window.addEventListener('hashchange', openCampaignFragment);
+  openCampaignFragment();
+}
