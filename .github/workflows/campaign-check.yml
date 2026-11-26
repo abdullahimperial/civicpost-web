@@ -1,0 +1,22 @@
+name: Check campaign social sharing
+on:
+  push:
+    branches: [qa/campaign-social-sharing-v116]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - run: node browser-check.cjs
+      - if: contains(github.event.head_commit.message, '[live]')
+        run: node browser-check.cjs --live
